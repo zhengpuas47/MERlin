@@ -251,7 +251,7 @@ class DataOrganization(object):
         return sequentialChannels, sequentialGeneNames
 
     def _get_image_path(
-            self, imageType: str, fov: int, imagingRound: int) -> str:
+            self, imageType: str, fov: int, imagingRound: int) -> str:       
         selection = self.fileMap[(self.fileMap['imageType'] == imageType) &
                                  (self.fileMap['fov'] == fov) &
                                  (self.fileMap['imagingRound'] == imagingRound)]

@@ -161,7 +161,7 @@ def generate_analysis_tasks_and_snakefile(dataSet: dataset.MERFISHDataSet,
 def run_with_snakemake(
         dataSet: dataset.MERFISHDataSet, snakefilePath: str, coreCount: int,
         snakemakeParameters: Dict = {}, report: bool = True):
-    print('Running MERlin pipeline through snakemake')
+    print(f'Running MERlin pipeline through snakemake with path: {snakefilePath}')
     snakemake.snakemake(snakefilePath, cores=coreCount,
                         workdir=dataSet.get_snakemake_path(),
                         stats=snakefilePath + '.stats', lock=False,

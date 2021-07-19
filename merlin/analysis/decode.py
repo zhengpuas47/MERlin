@@ -204,12 +204,15 @@ class Decode(BarcodeSavingParallelAnalysisTask):
                 for i in range(zPositionCount):
                     outputTif.save(decodedImages[i].astype(np.float32),
                                    photometric='MINISBLACK',
+                                   contiguous=True,
                                    metadata=imageDescription)
                     outputTif.save(magnitudeImages[i].astype(np.float32),
                                    photometric='MINISBLACK',
+                                   contiguous=True,
                                    metadata=imageDescription)
                     outputTif.save(distanceImages[i].astype(np.float32),
                                    photometric='MINISBLACK',
+                                   contiguous=True,
                                    metadata=imageDescription)
 
     def _extract_and_save_barcodes(
