@@ -75,12 +75,12 @@ class SlurmReport(analysistask.AnalysisTask):
                 return splitElapsed[0]
 
         outputDF = outputDF.assign(Elapsed=pandas.to_timedelta(
-            outputDF['Elapsed'].apply(reformat_timedelta), unit='s'))
+            outputDF['Elapsed'].apply(reformat_timedelta) ))
         outputDF = outputDF.assign(Timelimit=pandas.to_timedelta(
-            outputDF['Timelimit'].apply(reformat_timedelta), unit='s'))
+            outputDF['Timelimit'].apply(reformat_timedelta) ))
         outputDF = outputDF.assign(Queued=pandas.to_timedelta(
             pandas.to_datetime(outputDF['Start']) -
-            pandas.to_datetime(outputDF['Submit']), unit='s'))
+            pandas.to_datetime(outputDF['Submit']) ))
 
         return outputDF.reindex()
 
@@ -102,13 +102,13 @@ class SlurmReport(analysistask.AnalysisTask):
         plt.ylabel('Time (min)')
         plt.title('Run time')
         plt.subplot(1, 4, 3)
-        plt.boxplot([slurmDF['MaxDiskRead'].str[:-1].astype(float)],
+        plt.boxplot([slurmDF['MaxDiskRead'].astype(str).str.strip('BKMG').astype(float)],
                     widths=0.25)
         plt.xticks([1], ['MaxDiskRead'])
         plt.ylabel('Number of mb read')
         plt.title('Disk usage')
         plt.subplot(1, 4, 4)
-        plt.boxplot([slurmDF['MaxDiskWrite'].str[:-1].astype(float)],
+        plt.boxplot([slurmDF['MaxDiskWrite'].astype(str).str.strip('BKMG').astype(float)],
                     widths=0.25)
         plt.xticks([1], ['MaxDiskWrite'])
         plt.ylabel('Number of mb written')

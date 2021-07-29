@@ -40,9 +40,17 @@ class SnakemakeRule(object):
         inputTasks = [self._analysisTask.dataSet.load_analysis_task(x)
                       for x in self._analysisTask.get_dependencies()]
         if len(inputTasks) > 0:
-            inputString = ','.join(['ancient(' + self._add_quotes(
-                x.dataSet.analysis_done_filename(x)) + ')'
+            # Using the ancient keyword causes incorrect scheduling order by snakemake
+            # https://github.com/snakemake/snakemake/issues/946
+            # May revert this keyword when the bug in snakemake is fixed.
+            #inputString = ','.join(['ancient(' + self._add_quotes(
+            #    x.dataSet.analysis_done_filename(x)) + ')'
+            #                        for x in inputTasks])
+
+            inputString = ','.join([self._add_quotes(
+                x.dataSet.analysis_done_filename(x))
                                     for x in inputTasks])
+                              
         else:
             inputString = ''
 

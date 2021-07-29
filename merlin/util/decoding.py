@@ -332,7 +332,9 @@ class PixelBasedDecoder(object):
                              for y in br.coords], axis=0) - backgroundRefactors
                 normPixelTrace = meanPixelTrace/np.linalg.norm(meanPixelTrace)
                 sumPixelTraces[b, :] += normPixelTrace/barcodesSeen[b]
-
+        # The following implementation causes refactors to be
+        # all nan (the pipeline will crash in a subsequent optimization step) 
+        # when there are bits that are not used by any barcodes in the codebook.
         sumPixelTraces[self._decodingMatrix == 0] = np.nan
         onBitIntensity = np.nanmean(sumPixelTraces, axis=0)
         refactors = onBitIntensity/np.mean(onBitIntensity)
