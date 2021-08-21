@@ -6,6 +6,8 @@
 *.egg-info/
 __pycache__/
 .ipynb_checkpoints/
+# ignore changes in test
+**/test/*
 
 pip-log.txt
 pip-delete-this-directory.txt
