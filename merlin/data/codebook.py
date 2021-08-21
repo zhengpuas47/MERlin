@@ -37,9 +37,8 @@ class Codebook(object):
         with open(filePath, 'r') as f:
             if 'version' in f.readline():
                 newVersion = False
-
         if newVersion:
-            self._data = pandas.read_csv(filePath)
+            self._data = pandas.read_csv(filePath, header=0)
         else:
             headerLength = 3
             barcodeData = pandas.read_csv(
