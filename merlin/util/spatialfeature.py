@@ -820,3 +820,67 @@ def remove_overlapping_cells(graph):
                                       columns=['cell_id', 'originalFOV',
                                                'assignedFOV'])
     return cleanedCellsDF
+
+# basic function to convert polygon into 2d mask
+def convert_polygon_into_mask(polygon:geometry.polygon.Polygon,
+                              fov_center:np.ndarray,
+                              microns_per_pixel:float=0.108,
+                              image_size:np.ndarray=np.array([2048,2048]),
+    ):
+    """function to convert a layer of segmentation polygon into mask"""
+    from matplotlib.path import Path
+    # extract vertices coordniates
+    poly_coordinates = np.round((np.array(list(polygon.exterior.coords)) - fov_center)/0.108)
+    # generate path
+    poly_path = Path(poly_coordinates)
+    # generate meshgrid 
+    x, y = np.meshgrid(np.arange(image_size[0]),np.arange(image_size[1]))
+    x, y = x.flatten(), y.flatten()
+    points = np.vstack((x,y)).T
+    # extract all internal pixels, assign to be 1
+    mask = poly_path.contains_points(points)
+    mask = mask.reshape((image_size[0], image_size[1]))
+    
+    return mask
+# for a list of polygon representing each cell's boundary in 2d:
+def convert_boundary_into_mask(boundary:list,
+                               fov_center:np.ndarray,
+                               microns_per_pixel:float=0.108,
+                               image_size:np.ndarray=np.array([2048,2048]),
+                               ):
+    """function to convert multiple polygon from the same cell into single 2d mask"""
+    # initialize
+    _mask = np.zeros(image_size, dtype=np.uint16)
+    for _polygon in boundary:
+        _mask += convert_polygon_into_mask(_polygon, fov_center=fov_center,
+                                           microns_per_pixel=microns_per_pixel, image_size=image_size)
+    
+    return _mask
+
+def convert_z_boundaries_into_3d_mask(boundaries:list,
+                                      z_coordinates:np.ndarray,
+                                      target_z_coordinates:np.ndarray,
+                                      fov_center:np.ndarray,
+                                      microns_per_pixel:float=0.108,
+                                      image_size:np.ndarray=np.array([2048,2048]),
+    ):
+    """Function to concatenate all 2d masks and generate a 3d mask for one cell"""
+    # check inputs
+    if len(boundaries) != len(z_coordinates):
+        raise IndexError(f"length of boundaries and z_coordinates doesnt match!")
+    # generate z layers
+    _mask_layers = []
+    for _z, _bds in zip(z_coordinates, boundaries):
+        print(_z)
+        _masks = []
+        if len(_bds) == 0:
+            _mask_layers.append(np.zeros(image_size).astype(np.uint16))
+        else:
+            for _polygon in _bds:
+                _mask = convert_polygon_into_mask(_polygon, fov_center=fov_center,
+                                                  microns_per_pixel=microns_per_pixel,
+                                                  image_size=image_size)
+                _masks.append(_mask)
+            _mask_layers.append(np.array(_masks).max(0).astype(np.uint16))
+    
+    return np.array(_mask_layers)
