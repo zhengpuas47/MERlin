@@ -39,3 +39,8 @@ For more information on installation and usage, please see the [documentation](h
 Contributions are welcome! Please see the 
 [documentation](https://emanuega.github.io/MERlin/contributing.html) for contribution guidelines.
 
+## Modified installation:
+
+* install pytorch[link](https://pytorch.org/) and cellpose manually if you need GPU version. (which is usually 10x faster than CPU version in segmenting typical MERFISH datasets)
+* run pip install -e MERlin to allow debugging of codes
+* **Pu Zheng**

@@ -45,3 +45,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - An alternative Lucy-Richardson deconvolution approach that requires ~10x fewer iterations.
 
+## [0.1.6b] -
+### Fixed
+- Fixed h5py and tifffile upgrade problem. Now Merlin could use the newest version of these two packages.
+### Added
+- Cellpose segmentation of nucleus and watershed with polyT image.
