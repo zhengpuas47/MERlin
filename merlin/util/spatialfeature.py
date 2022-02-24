@@ -56,6 +56,8 @@ class SpatialFeature(object):
             self._zCoordinates = zCoordinates
         else:
             self._zCoordinates = np.arange(len(boundaryList))
+        # save label
+        self._label = label
 
     @staticmethod
     def feature_from_label_matrix(labelMatrix: np.ndarray, fov: int,
@@ -89,7 +91,10 @@ class SpatialFeature(object):
         return SpatialFeature([SpatialFeature._remove_invalid_boundaries(
             SpatialFeature._remove_interior_boundaries(
                 [geometry.Polygon(x) for x in b if len(x) > 2]))
-                               for b in boundaries], fov, zCoordinates)
+                               for b in boundaries], 
+                               fov, zCoordinates, 
+                               None, # uid
+                               label) # add label
 
     @staticmethod
     def _extract_boundaries(labelMatrix: np.ndarray) -> List[np.ndarray]:
@@ -418,11 +423,13 @@ class HDF5SpatialFeatureDB(SpatialFeatureDB):
     @staticmethod
     def _save_feature_to_hdf5_group(h5Group: h5py.Group,
                                     feature: SpatialFeature,
-                                    fov: int) -> None:
+                                    fov: int,
+                                    label: int) -> None:
         featureKey = str(feature.get_feature_id())
         featureGroup = h5Group.create_group(featureKey)
         featureGroup.attrs['id'] = np.string_(feature.get_feature_id())
         featureGroup.attrs['fov'] = fov
+        featureGroup.attrs['label'] = label
         featureGroup.attrs['bounding_box'] = \
             np.array(feature.get_bounding_box())
         featureGroup.attrs['volume'] = feature.get_volume()
@@ -464,7 +471,8 @@ class HDF5SpatialFeatureDB(SpatialFeatureDB):
 
         return loadedFeature
 
-    def write_features(self, features: List[SpatialFeature], fov=None) -> None:
+    def write_features(self, features: List[SpatialFeature], 
+        fov=None, labels=None) -> None:
         if fov is None:
             uniqueFOVs = np.unique([f.get_fov() for f in features])
             for currentFOV in uniqueFOVs:
@@ -481,7 +489,16 @@ class HDF5SpatialFeatureDB(SpatialFeatureDB):
                 for currentFeature in features:
                     self._save_feature_to_hdf5_group(featureGroup,
                                                      currentFeature,
-                                                     fov)
+                                                     fov, currentFeature._label)
+                # save labels if given
+                if labels is not None:
+                    labelGroup = f.require_group('labeldata')
+                    labelGroup.attrs['version'] = merlin.version()
+                    # overwrite
+                    if 'label3D' in labelGroup:
+                        del labelGroup['label3D']
+                    labelData = labelGroup.create_dataset('label3D', 
+                        data=labels)
 
     def read_features(self, fov: int = None) -> List[SpatialFeature]:
         if fov is None:

@@ -110,7 +110,8 @@ def separate_merged_seeds(seedsIn: np.ndarray) -> np.ndarray:
     return seeds
 
 
-def prepare_watershed_images(watershedImageStack: np.ndarray
+def prepare_watershed_images(watershedImageStack: np.ndarray,
+                             maskThreshold:float=1.1,
                              ) -> Tuple[np.ndarray, np.ndarray]:
     """Prepare the given images as the input image for watershedding.
 
@@ -126,9 +127,9 @@ def prepare_watershed_images(watershedImageStack: np.ndarray
         calculated watershed mask
     """
     filterSize = int(2 * np.floor(watershedImageStack.shape[1] / 16) + 1)
-
+    
     watershedMask = np.array([ndimage.morphology.binary_fill_holes(
-        x > 1.1 * filters.threshold_local(x, filterSize, method='mean',
+        x > maskThreshold * filters.threshold_local(x, filterSize, method='mean',
                                           mode='nearest'))
         for x in watershedImageStack])
 
