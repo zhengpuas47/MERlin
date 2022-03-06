@@ -203,8 +203,8 @@ class CellPoseSegment(FeatureSavingAnalysisTask):
     def get_overlapping_objects(segmentationZ0: np.ndarray,
                                 segmentationZ1: np.ndarray,
                                 n0: int,
-                                fraction_threshold0: float=0.4,
-                                fraction_threshold1: float=0.4) -> Tuple[np.float64, 
+                                fraction_threshold0: float=0.2,
+                                fraction_threshold1: float=0.2) -> Tuple[np.float64, 
                                                   np.float64, np.float64]:
         """compare cell labels in adjacent image masks
         Args:
