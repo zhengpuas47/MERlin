@@ -46,7 +46,7 @@ class Decode(BarcodeSavingParallelAnalysisTask):
         if 'crop_width' not in self.parameters:
             self.parameters['crop_width'] = 100
         if 'write_decoded_images' not in self.parameters:
-            self.parameters['write_decoded_images'] = True
+            self.parameters['write_decoded_images'] = False
         if 'minimum_area' not in self.parameters:
             self.parameters['minimum_area'] = 0
         if 'distance_threshold' not in self.parameters:
