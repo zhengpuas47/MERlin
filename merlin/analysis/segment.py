@@ -4,6 +4,7 @@ from scipy import ndimage
 from skimage import measure
 from skimage import segmentation
 from skimage import exposure
+from skimage import morphology
 import rtree
 import time
 import networkx as nx
@@ -138,15 +139,17 @@ class CellPoseSegment(FeatureSavingAnalysisTask):
         if 'use_gpu' not in self.parameters:
             self.parameters['use_gpu'] = False
         if 'diameter' not in self.parameters:
-            self.parameters['diameter'] = 50
+            self.parameters['diameter'] = 30
         if 'min_size' not in self.parameters:
-            self.parameters['min_size'] = 200
+            self.parameters['min_size'] = 100
         if 'flow_threshold' not in self.parameters:
             self.parameters['flow_threshold'] = 0.4
         if 'stitch_threshold' not in self.parameters:
             self.parameters['stitch_threshold'] = 0.1
         if 'mask_threshold' not in self.parameters:
-            self.parameters['mask_threshold'] = 1.4
+            self.parameters['mask_threshold'] = 1.3
+        if 'mask_threshold' not in self.parameters:
+            self.parameters['cellprob_threshold'] = 0.0
         if 'verbose' not in self.parameters:
             self.parameters['verbose'] = True
 
@@ -330,65 +333,84 @@ class CellPoseSegment(FeatureSavingAnalysisTask):
         return 
 
     def _run_analysis(self, fragmentIndex):
-        globalTask = self.dataSet.load_analysis_task(
-                self.parameters['global_align_task'])
-
-        # read membrane and nuclear indices
-        nuclear_ids = self.dataSet.get_data_organization().get_data_channel_index(
-                self.parameters['nuclear_channel'])
+        featureDB = self.get_feature_database()
+        # Check existance
+        if featureDB.check_exist_features(fragmentIndex):
+            # if feature file exists, skip
+            return
+        
+        # Load 3dMask if available
         try:
-            cytoplasm_ids = self.dataSet.get_data_organization().get_data_channel_index(
-                    self.parameters['cytoplasm_channel'])
+            labels3d = featureDB.load_labels(fragmentIndex)
         except:
-            cytoplasm_ids = None
-        # read images and perform segmentation
-        nuclear_images = self._read_image_stack(fragmentIndex, nuclear_ids)
-        if cytoplasm_ids is None:
-            run_cytoplasm = False
-        else:
-            run_cytoplasm = True
-            cytoplasm_images = self._read_image_stack(fragmentIndex, cytoplasm_ids)
-        # Load the cellpose model. 'nuclei' works the best so far for dapi only
-        model = models.Cellpose(gpu=self.parameters['use_gpu'], model_type='nuclei')
-        # Run the cellpose prediction
-        masks, flows, styles, diams = model.eval(np.stack([nuclear_images, nuclear_images], axis=3), 
-                                        diameter=self.parameters['diameter'], 
-                                        do_3D=False, channels=[1,0], 
-                                        resample=True, min_size=self.parameters['min_size'],
-                                        flow_threshold=self.parameters['flow_threshold'],
-                                        stitch_threshold=self.parameters['stitch_threshold'],
-                                        verbose=self.parameters['verbose'],
-                                        )
-        # Combine 2D segmentation to 3D segmentation
-        masks3d = self.combine_2d_segmentation_masks_into_3d(masks, minKept_zLen=np.round(masks.shape[0]/10))
+            # read membrane and nuclear indices
+            nuclear_ids = self.dataSet.get_data_organization().get_data_channel_index(
+                    self.parameters['nuclear_channel'])
+            try:
+                cytoplasm_ids = self.dataSet.get_data_organization().get_data_channel_index(
+                        self.parameters['cytoplasm_channel'])
+            except:
+                cytoplasm_ids = None
+            # read images and perform segmentation
+            nuclear_images = self._read_image_stack(fragmentIndex, nuclear_ids)
+            if cytoplasm_ids is None:
+                run_cytoplasm = False
+                cytoplasm_images = nuclear_images
+            else:
+                run_cytoplasm = True
+                cytoplasm_images = self._read_image_stack(fragmentIndex, cytoplasm_ids)
+            # resize images into 1024 standard size
+            _input_nucl_im = np.array([cv2.resize(_ly, (1024,1024) ) for _ly in nuclear_images])
+            _input_cyto_im = np.array([cv2.resize(_ly, (1024,1024) ) for _ly in cytoplasm_images])
+            # Load the cellpose model. 'nuclei' works the best so far for dapi only
+            model = models.CellposeModel(gpu=True, model_type='TN2')
+            # Run the cellpose prediction
+            labels3d, _, _, _ = model.eval(
+                np.stack([_input_cyto_im, _input_nucl_im], axis=3), 
+                batch_size=20, anisotropy=1000/108/2, # TODO: fix the hard-coded anisotropy
+                diameter=self.parameters['diameter'], 
+                cellprob_threshold=self.parameters['cellprob_threshold'],
+                do_3D=True, channels=[1,2], 
+                min_size=self.parameters['min_size'],
+                #flow_threshold=self.parameters['flow_threshold'],
+                #stitch_threshold=self.parameters['stitch_threshold'],
+                )
+            # resize segmentation label back
+            labels3d = np.array([cv2.resize(_ly, nuclear_images.shape[1:], 
+                                            interpolation=cv2.INTER_NEAREST_EXACT) 
+                                 for _ly in labels3d])
 
         # Watershed with polyt if applicable
         if run_cytoplasm:
             # prepare watershed
             normalizedWatershed, watershedMask = watershed.prepare_watershed_images(cytoplasm_images, self.parameters['mask_threshold'])
-            watershedMask[masks3d > 0] = True
+            watershedMask[labels3d > 0] = True
             # run watershed                                                
-            _final_mask = segmentation.watershed(
-                normalizedWatershed, masks3d, mask=watershedMask,
+            _final_labels = segmentation.watershed(
+                normalizedWatershed, labels3d, mask=watershedMask,
                 connectivity=np.ones((3, 3, 3)), watershed_line=True)
-        else:
-            _final_mask = masks3d
+            # dialate to remove sharp edges
+            _final_labels = ndimage.grey_dilation(_final_labels, structure=morphology.ball(1))
 
-        # save mask3d
-        self._save_mask(fragmentIndex, _final_mask)
+        else:
+            _final_labels = labels3d
+
+        # Save mask3d
+        #self._save_mask(fragmentIndex, _final_labels)
 
         # Get the boundary features
+        globalTask = self.dataSet.load_analysis_task(
+                self.parameters['global_align_task'])
         zPos = np.array(self.dataSet.get_data_organization().get_z_positions())
         featureList = [spatialfeature.SpatialFeature.feature_from_label_matrix(
-            (_final_mask == i), fragmentIndex,
+            (_final_labels == i), fragmentIndex,
             globalTask.fov_to_global_transform(fragmentIndex), 
             zPos, 
             i) # add label
-            for i in np.unique(_final_mask) if i != 0]
+            for i in np.unique(_final_labels) if i != 0]
 
-        featureDB = self.get_feature_database()
-        featureDB.write_features(featureList, fragmentIndex, _final_mask)
-
+        # Write into feature.hdf5 file
+        featureDB.write_features(featureList, fragmentIndex, _final_labels)
 
     def _run_analysis_membrane(self, fragmentIndex):
         globalTask = self.dataSet.load_analysis_task(
@@ -405,7 +427,7 @@ class CellPoseSegment(FeatureSavingAnalysisTask):
         membrane_images = self._read_image_stack(fragmentIndex, membrane_ids)
 
         # preprocess the images 
-        nuclear_images_pp, membrane_images_pp = preprocess_image_channels(nuclear_images, membrane_images)
+        nuclear_images_pp, membrane_images_pp = self.preprocess_image_channels(nuclear_images, membrane_images)
 
         # Combine the images into a stack
         zero_images = np.zeros(nuclear_images.shape)

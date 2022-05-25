@@ -2,6 +2,7 @@ from abc import abstractmethod
 import numpy as np
 import uuid
 import cv2
+import os
 from skimage import measure
 from typing import List
 from typing import Tuple
@@ -392,6 +393,26 @@ class SpatialFeatureDB(object):
         pass
 
     @abstractmethod
+    def check_exist_features(self, fov: int = None) -> bool:
+        """Check existance of features in this database
+
+        Args:
+            fov: if not None, only the features associated with the specified
+                fov are returned
+        """
+        pass
+
+    @abstractmethod
+    def load_labels(self, fov: int = None) -> bool:
+        """Load existing npy version of 3D segmentation labels (generated from GPU)
+
+        Args:
+            fov: if not None, only the features associated with the specified
+                fov are returned
+        """
+        pass
+
+    @abstractmethod
     def empty_database(self, fov: int = None) -> None:
         """Remove all features from this database.
 
@@ -519,6 +540,24 @@ class HDF5SpatialFeatureDB(SpatialFeatureDB):
             pass
 
         return featureList
+
+    def check_exist_features(self, fov: int = None) -> bool:
+        if fov is None:
+            featureList = [f for x in self._dataSet.get_fovs()
+                           for f in self.check_exist_features(x)]
+            return np.array(featureList).all()
+        
+        _feature_filename = self._dataSet._analysis_result_save_path(
+            'feature_data', self._analysisTask, fov, 'features', '.hdf5')
+        return os.path.exists(_feature_filename)
+
+    def load_labels(self, fov: int = None) -> bool:
+        if fov is None:
+            return False
+        
+        _label_filename = self._dataSet._analysis_result_save_path(
+            'feature_data', self._analysisTask, fov, 'segmentation_label', '.npy')
+        return np.load(_label_filename)
 
     def empty_database(self, fov: int = None) -> None:
         if fov is None:

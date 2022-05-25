@@ -6,7 +6,7 @@ from skimage import filters
 from skimage import measure
 from pyclustering.cluster import kmedoids
 from typing import Tuple
-
+from scipy.stats import scoreatpercentile
 from merlin.util import matlab
 
 """
@@ -111,7 +111,8 @@ def separate_merged_seeds(seedsIn: np.ndarray) -> np.ndarray:
 
 
 def prepare_watershed_images(watershedImageStack: np.ndarray,
-                             maskThreshold:float=1.1,
+                             maskThreshold:float=1.3,
+                             normalizePercentile=98,
                              ) -> Tuple[np.ndarray, np.ndarray]:
     """Prepare the given images as the input image for watershedding.
 
@@ -127,16 +128,16 @@ def prepare_watershed_images(watershedImageStack: np.ndarray,
         calculated watershed mask
     """
     filterSize = int(2 * np.floor(watershedImageStack.shape[1] / 16) + 1)
-    
+    # Local normalization
     watershedMask = np.array([ndimage.morphology.binary_fill_holes(
         x > maskThreshold * filters.threshold_local(x, filterSize, method='mean',
                                           mode='nearest'))
         for x in watershedImageStack])
-
-    normalizedWatershed = 1 - (watershedImageStack
-                               - np.min(watershedImageStack)) / \
-                          (np.max(watershedImageStack)
-                           - np.min(watershedImageStack))
-    normalizedWatershed[np.invert(watershedMask)] = 1
+    # rescale into 0-1
+    _min, _max = scoreatpercentile(watershedImageStack, 100-normalizePercentile),\
+        scoreatpercentile(watershedImageStack, normalizePercentile)
+    normalizedWatershed = 1 - (watershedImageStack - _min) / (_max - _min)
+    normalizedWatershed[normalizedWatershed < 0] = 0
+    #normalizedWatershed[np.invert(watershedMask)] = 1
 
     return normalizedWatershed, watershedMask
