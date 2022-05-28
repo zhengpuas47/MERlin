@@ -138,6 +138,6 @@ def prepare_watershed_images(watershedImageStack: np.ndarray,
         scoreatpercentile(watershedImageStack, normalizePercentile)
     normalizedWatershed = 1 - (watershedImageStack - _min) / (_max - _min)
     normalizedWatershed[normalizedWatershed < 0] = 0
-    #normalizedWatershed[np.invert(watershedMask)] = 1
+    normalizedWatershed[np.invert(watershedMask)] = 1
 
     return normalizedWatershed, watershedMask
