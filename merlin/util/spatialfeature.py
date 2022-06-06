@@ -297,7 +297,7 @@ class SpatialFeature(object):
                 the i'th point provided is in this spatial feature.
         """
         boundaries = self.get_boundaries()
-        positionList[:, 2] = np.round(positionList[:, 2])
+        positionList[:, 2] = np.round(positionList[:, 2].astype(np.float))
 
         containmentList = np.zeros(positionList.shape[0], dtype=np.bool)
 
@@ -556,8 +556,12 @@ class HDF5SpatialFeatureDB(SpatialFeatureDB):
             return False
         
         _label_filename = self._dataSet._analysis_result_save_path(
-            'feature_data', self._analysisTask, fov, 'segmentation_label', '.npy')
-        return np.load(_label_filename)
+            'segmentation_label', self._analysisTask, fov, 'segmentation_label', '.npy')
+        if os.path.exists(_label_filename):
+            print(f"-- load segmentation labels: {_label_filename}")
+            return np.load(_label_filename)
+        else:
+            return False
 
     def empty_database(self, fov: int = None) -> None:
         if fov is None:

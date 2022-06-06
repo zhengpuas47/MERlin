@@ -147,8 +147,8 @@ class CellPoseSegment(FeatureSavingAnalysisTask):
         if 'stitch_threshold' not in self.parameters:
             self.parameters['stitch_threshold'] = 0.1
         if 'mask_threshold' not in self.parameters:
-            self.parameters['mask_threshold'] = 1.3
-        if 'mask_threshold' not in self.parameters:
+            self.parameters['mask_threshold'] = 1.4
+        if 'cellprob_threshold' not in self.parameters:
             self.parameters['cellprob_threshold'] = 0.0
         if 'verbose' not in self.parameters:
             self.parameters['verbose'] = True
@@ -332,40 +332,46 @@ class CellPoseSegment(FeatureSavingAnalysisTask):
         SegmentationMask3D: np.ndarray, ):
         return 
 
-    def _run_analysis(self, fragmentIndex):
+    def _run_analysis(self, fragmentIndex: int):
         featureDB = self.get_feature_database()
         # Check existance
         if featureDB.check_exist_features(fragmentIndex):
             # if feature file exists, skip
             return
-        
+
+        # read membrane and nuclear indices
+        nuclear_ids = self.dataSet.get_data_organization().get_data_channel_index(
+                self.parameters['nuclear_channel'])
+        try:
+            cytoplasm_ids = self.dataSet.get_data_organization().get_data_channel_index(
+                    self.parameters['cytoplasm_channel'])
+        except:
+            cytoplasm_ids = None
+        # read images and perform segmentation
+        nuclear_images = self._read_image_stack(fragmentIndex, nuclear_ids)
+        if cytoplasm_ids is None:
+            run_cytoplasm = False
+            cytoplasm_images = nuclear_images
+        else:
+            run_cytoplasm = True
+            cytoplasm_images = self._read_image_stack(fragmentIndex, cytoplasm_ids)
         # Load 3dMask if available
         try:
             labels3d = featureDB.load_labels(fragmentIndex)
+            if labels3d is None:
+                print(f"Invalid labels")
+                raise ValueError(f"Invalid labels")
+            #print(labels3d.shape)
+            print(f"Labels directly loaded from file.")
         except:
-            # read membrane and nuclear indices
-            nuclear_ids = self.dataSet.get_data_organization().get_data_channel_index(
-                    self.parameters['nuclear_channel'])
-            try:
-                cytoplasm_ids = self.dataSet.get_data_organization().get_data_channel_index(
-                        self.parameters['cytoplasm_channel'])
-            except:
-                cytoplasm_ids = None
-            # read images and perform segmentation
-            nuclear_images = self._read_image_stack(fragmentIndex, nuclear_ids)
-            if cytoplasm_ids is None:
-                run_cytoplasm = False
-                cytoplasm_images = nuclear_images
-            else:
-                run_cytoplasm = True
-                cytoplasm_images = self._read_image_stack(fragmentIndex, cytoplasm_ids)
+            print(f"Generate labels by cellpose")
             # resize images into 1024 standard size
             _input_nucl_im = np.array([cv2.resize(_ly, (1024,1024) ) for _ly in nuclear_images])
             _input_cyto_im = np.array([cv2.resize(_ly, (1024,1024) ) for _ly in cytoplasm_images])
             # Load the cellpose model. 'nuclei' works the best so far for dapi only
             model = models.CellposeModel(gpu=True, model_type='TN2')
             # Run the cellpose prediction
-            labels3d, _, _, _ = model.eval(
+            labels3d, _, _ = model.eval(
                 np.stack([_input_cyto_im, _input_nucl_im], axis=3), 
                 batch_size=20, anisotropy=1000/108/2, # TODO: fix the hard-coded anisotropy
                 diameter=self.parameters['diameter'], 
@@ -379,38 +385,40 @@ class CellPoseSegment(FeatureSavingAnalysisTask):
             labels3d = np.array([cv2.resize(_ly, nuclear_images.shape[1:], 
                                             interpolation=cv2.INTER_NEAREST_EXACT) 
                                  for _ly in labels3d])
-
-        # Watershed with polyt if applicable
-        if run_cytoplasm:
-            # prepare watershed
-            normalizedWatershed, watershedMask = watershed.prepare_watershed_images(cytoplasm_images, self.parameters['mask_threshold'])
-            watershedMask[labels3d > 0] = True
-            # run watershed                                                
-            _final_labels = segmentation.watershed(
-                normalizedWatershed, labels3d, mask=watershedMask,
-                connectivity=np.ones((3, 3, 3)), watershed_line=True)
-            # dialate to remove sharp edges
-            _final_labels = ndimage.grey_dilation(_final_labels, structure=morphology.ball(1))
-
-        else:
-            _final_labels = labels3d
-
+            # Watershed with polyt if applicable
+            if run_cytoplasm:
+                print(f"Run watershed with cytoplasm images")
+                # prepare watershed
+                normalizedWatershed, watershedMask = watershed.prepare_watershed_images(cytoplasm_images, self.parameters['mask_threshold'])
+                watershedMask[labels3d > 0] = True
+                #print(normalizedWatershed.shape, watershedMask.shape)
+                # run watershed                                                
+                labels3d = segmentation.watershed(
+                    normalizedWatershed, labels3d, 
+                    mask=watershedMask,
+                    connectivity=np.ones((3, 3, 3)), 
+                    watershed_line=True)
+                # dialate to remove sharp edges
+                labels3d = ndimage.grey_dilation(labels3d, structure=morphology.ball(1))
+                
         # Save mask3d
-        #self._save_mask(fragmentIndex, _final_labels)
+        #self._save_mask(fragmentIndex, labels3d)
 
         # Get the boundary features
+        print(f"Get boundary features")
         globalTask = self.dataSet.load_analysis_task(
                 self.parameters['global_align_task'])
         zPos = np.array(self.dataSet.get_data_organization().get_z_positions())
         featureList = [spatialfeature.SpatialFeature.feature_from_label_matrix(
-            (_final_labels == i), fragmentIndex,
+            (labels3d == i), fragmentIndex,
             globalTask.fov_to_global_transform(fragmentIndex), 
             zPos, 
             i) # add label
-            for i in np.unique(_final_labels) if i != 0]
+            for i in np.unique(labels3d) if i != 0]
 
         # Write into feature.hdf5 file
-        featureDB.write_features(featureList, fragmentIndex, _final_labels)
+        print(f"Save boundary features and labels")
+        featureDB.write_features(featureList, fragmentIndex, labels3d)
 
     def _run_analysis_membrane(self, fragmentIndex):
         globalTask = self.dataSet.load_analysis_task(
