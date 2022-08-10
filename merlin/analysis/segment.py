@@ -355,21 +355,22 @@ class CellPoseSegment(FeatureSavingAnalysisTask):
         else:
             run_cytoplasm = True
             cytoplasm_images = self._read_image_stack(fragmentIndex, cytoplasm_ids)
-        # Load 3dMask if available
+       
+        # Load 3dMask if available   
         try:
             labels3d = featureDB.load_labels(fragmentIndex)
-            if labels3d is None:
+            if labels3d is False:
                 print(f"Invalid labels")
                 raise ValueError(f"Invalid labels")
             #print(labels3d.shape)
             print(f"Labels directly loaded from file.")
         except:
-            print(f"Generate labels by cellpose")
+            print(f"Generate labels by cellpose for fov_{fragmentIndex}")
             # resize images into 1024 standard size
             _input_nucl_im = np.array([cv2.resize(_ly, (1024,1024) ) for _ly in nuclear_images])
             _input_cyto_im = np.array([cv2.resize(_ly, (1024,1024) ) for _ly in cytoplasm_images])
             # Load the cellpose model. 'nuclei' works the best so far for dapi only
-            model = models.CellposeModel(gpu=True, model_type='TN2')
+            model = models.CellposeModel(gpu=self.parameters['use_gpu'], model_type='TN2')
             # Run the cellpose prediction
             labels3d, _, _ = model.eval(
                 np.stack([_input_cyto_im, _input_nucl_im], axis=3), 
@@ -402,10 +403,10 @@ class CellPoseSegment(FeatureSavingAnalysisTask):
                 labels3d = ndimage.grey_dilation(labels3d, structure=morphology.ball(1))
                 
         # Save mask3d
-        #self._save_mask(fragmentIndex, labels3d)
+        self._save_mask(fragmentIndex, labels3d)
 
         # Get the boundary features
-        print(f"Get boundary features")
+        print(f"Get boundary features for fov_{fragmentIndex}")
         globalTask = self.dataSet.load_analysis_task(
                 self.parameters['global_align_task'])
         zPos = np.array(self.dataSet.get_data_organization().get_z_positions())
@@ -417,7 +418,7 @@ class CellPoseSegment(FeatureSavingAnalysisTask):
             for i in np.unique(labels3d) if i != 0]
 
         # Write into feature.hdf5 file
-        print(f"Save boundary features and labels")
+        print(f"Save boundary features and labels for fov_{fragmentIndex}")
         featureDB.write_features(featureList, fragmentIndex, labels3d)
 
     def _run_analysis_membrane(self, fragmentIndex):

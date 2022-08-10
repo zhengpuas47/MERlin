@@ -557,6 +557,7 @@ class HDF5SpatialFeatureDB(SpatialFeatureDB):
         
         _label_filename = self._dataSet._analysis_result_save_path(
             'segmentation_label', self._analysisTask, fov, 'segmentation_label', '.npy')
+
         if os.path.exists(_label_filename):
             print(f"-- load segmentation labels: {_label_filename}")
             return np.load(_label_filename)
