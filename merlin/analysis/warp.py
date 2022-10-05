@@ -135,7 +135,7 @@ class Warp(analysistask.ParallelAnalysisTask):
 
     def _save_transformations(self, transformationList: List, fov: int) -> None:
         self.dataSet.save_numpy_analysis_result(
-            np.array(transformationList), 'offsets',
+            np.array(transformationList, dtype=object), 'offsets',
             self.get_analysis_name(), resultIndex=fov,
             subdirectory='transformations')
 
