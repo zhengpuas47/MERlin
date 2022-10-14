@@ -144,6 +144,26 @@ class SpatialFeature(object):
             inPolygons: List[geometry.Polygon]) -> List[geometry.Polygon]:
         return [p for p in inPolygons if p.is_valid]
 
+    def make_a_buffered_copy(self, buffer_size: float):
+        '''Make a buffered copy of the SpatialFeature where the
+        boundaries in each Z plane is expanded (positive buffer_size)
+        or shrinked (negative buffer_size) by the buffer_size.
+        '''
+        new_boundaryList = []
+        for i in range(len(self._boundaryList)):
+            new_boundaryList.append([])
+
+            for pg in self._boundaryList[i]:
+                p_b = pg.buffer(buffer_size)
+
+                if p_b.geom_type == 'MultiPolygon':
+                    for p in p_b:
+                        new_boundaryList[i].append(p)
+                else:
+                    new_boundaryList[i].append(p_b)
+
+        return SpatialFeature(new_boundaryList, self._fov, self._zCoordinates.copy(), self._uniqueID)
+
     def set_fov(self, newFOV: int) -> None:
         """Update the FOV for this spatial feature.
 
@@ -296,13 +316,23 @@ class SpatialFeature(object):
             a numpy array of booleans containing true in the i'th index if
                 the i'th point provided is in this spatial feature.
         """
+        bounding_box = self.get_bounding_box()
+        
         boundaries = self.get_boundaries()
         positionList[:, 2] = np.round(positionList[:, 2].astype(np.float))
 
         containmentList = np.zeros(positionList.shape[0], dtype=np.bool)
 
+        if len(bounding_box) != 4:
+            return containmentList
+
         for zIndex in range(len(boundaries)):
-            currentIndexes = np.where(positionList[:, 2] == zIndex)[0]
+            currentIndexes = np.where(np.all([positionList[:, 2] == zIndex,
+                                              bounding_box[0] <= positionList[:, 0],
+                                              bounding_box[1] <= positionList[:, 1],
+                                              bounding_box[2] >= positionList[:, 0],
+                                              bounding_box[3] >= positionList[:, 1]], axis=0))[0]
+            
             currentContainment = [self.contains_point(
                 geometry.Point(x[0], x[1]), zIndex)
                 for x in positionList[currentIndexes]]
