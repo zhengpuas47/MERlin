@@ -105,7 +105,7 @@ class DeconvolutionPreprocess(Preprocess):
         hpImage = imagefilters.high_pass_filter(inputImage,
                                                 highPassFilterSize,
                                                 self._highPassSigma)
-        return hpImage.astype(np.float)
+        return hpImage.astype(np.float32)
 
     def _run_analysis(self, fragmentIndex):
         warpTask = self.dataSet.load_analysis_task(
