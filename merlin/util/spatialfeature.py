@@ -321,7 +321,7 @@ class SpatialFeature(object):
         boundaries = self.get_boundaries()
         positionList[:, 2] = np.round(positionList[:, 2].astype(np.float32))
 
-        containmentList = np.zeros(positionList.shape[0], dtype=np.bool)
+        containmentList = np.zeros(positionList.shape[0], dtype=bool)
 
         if len(bounding_box) != 4:
             return containmentList
