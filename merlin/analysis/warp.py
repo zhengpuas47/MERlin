@@ -191,9 +191,11 @@ class FiducialCorrelationWarp(Warp):
         highPassSigma = self.parameters['highpass_sigma']
         highPassFilterSize = int(2 * np.ceil(2 * highPassSigma) + 1)
 
-        return inputImage.astype(float) - cv2.GaussianBlur(
+        highPassImage =  inputImage.astype(float) - cv2.GaussianBlur(
             inputImage, (highPassFilterSize, highPassFilterSize),
             highPassSigma, borderType=cv2.BORDER_REPLICATE)
+        highPassImage[highPassImage < 0] = 0
+        return highPassImage
 
     def _run_analysis(self, fragmentIndex: int):
         # TODO - this can be more efficient since some images should
