@@ -205,6 +205,7 @@ class FiducialCorrelationWarp(Warp):
             self._filter(self.dataSet.get_fiducial_image(x, fragmentIndex)),
             upsample_factor=100)[0] for x in
                    self.dataSet.get_data_organization().get_data_channels()]
-        transformations = [transform.SimilarityTransform(
-            translation=[-x[1], -x[0]]) for x in offsets]
+        print(offsets)
+        transformations = [transform.SimilarityTransform(translation=[-_offset[1], -_offset[0]]) 
+                           for _offset in offsets]
         self._process_transformations(transformations, fragmentIndex)
