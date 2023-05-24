@@ -29,6 +29,6 @@ setuptools.setup(
     },
     classifiers=CLASSIFIERS
 )
-## Version 1.7
+## Version 0.1.7
 # Updated by Pu Zheng, 2023.5.24
 # modify all packages to match python 3.10
