@@ -197,15 +197,23 @@ class FiducialCorrelationWarp(Warp):
 
     def _run_analysis(self, fragmentIndex: int):
         # TODO - this can be more efficient since some images should
-        # use the same alignment if they are from the same imaging round
-        print("start fiducial corr")
-        fixedImage = self._filter(
-            self.dataSet.get_fiducial_image(0, fragmentIndex)) # get the first round as ref
-        offsets = [registration.phase_cross_correlation(
-            fixedImage,
-            self._filter(self.dataSet.get_fiducial_image(x, fragmentIndex)),
-            upsample_factor=100)[0] for x in
-                   self.dataSet.get_data_organization().get_data_channels()]
+        # use the same alignment if they are from the same imaging round       
+        ref_bit = 0 
+        fixedRawImage = self.dataSet.get_fiducial_image(ref_bit, fragmentIndex)
+        fixedImage = self._filter(fixedRawImage) # get the first round as ref
+        # calculate offsets
+        offsets = []
+        for bit in self.dataSet.get_data_organization().get_data_channels():
+            movingRawImage = self.dataSet.get_fiducial_image(bit, fragmentIndex)
+            movingImage = self._filter(movingRawImage)
+            _offset = registration.phase_cross_correlation(
+                fixedImage,movingImage,upsample_factor=100)[0]
+            # if all zero, calculate again
+            if not _offset.any() and bit != ref_bit:
+                _offset = registration.phase_cross_correlation(
+                    fixedRawImage,movingRawImage,upsample_factor=100)[0]
+            # append
+            offsets.append(_offset)
         print(offsets)
         transformations = [transform.SimilarityTransform(translation=[-_offset[1], -_offset[0]]) 
                            for _offset in offsets]
