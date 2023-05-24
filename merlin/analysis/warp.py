@@ -135,7 +135,7 @@ class Warp(analysistask.ParallelAnalysisTask):
 
     def _save_transformations(self, transformationList: List, fov: int) -> None:
         self.dataSet.save_numpy_analysis_result(
-            np.array(transformationList, dtype=object), 'offsets',
+            np.array(transformationList), 'offsets',
             self.get_analysis_name(), resultIndex=fov,
             subdirectory='transformations')
 
@@ -209,11 +209,11 @@ class FiducialCorrelationWarp(Warp):
             movingRawImage = self.dataSet.get_fiducial_image(bit, fragmentIndex)
             movingImage = self._filter(movingRawImage)
             _offset = registration.phase_cross_correlation(
-                fixedImage,movingImage,upsample_factor=100)[0]
+                fixedImage,movingImage,upsample_factor=100,normalization=None)[0]
             # if all zero, calculate again
-            if not _offset.any() and bit != ref_bit:
-                _offset = registration.phase_cross_correlation(
-                    fixedRawImage,movingRawImage,upsample_factor=100)[0]
+            #if not _offset.any() and bit != ref_bit:
+            #    _offset = registration.phase_cross_correlation(
+            #        fixedRawImage,movingRawImage,upsample_factor=100,normalization=None)[0]
             # append
             offsets.append(_offset)
         print(offsets)
