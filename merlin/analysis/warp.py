@@ -135,9 +135,10 @@ class Warp(analysistask.ParallelAnalysisTask):
 
     def _save_transformations(self, transformationList: List, fov: int) -> None:
         self.dataSet.save_numpy_analysis_result(
-            np.array(transformationList), 'offsets',
+            np.array([np.array(_m) for _m in transformationList], dtype=np.float64), 
+            'offsets',
             self.get_analysis_name(), resultIndex=fov,
-            subdirectory='transformations')
+            subdirectory='transformations') # here only save the array information
 
     def get_transformation(self, fov: int, dataChannel: int=None
                             ) -> Union[transform.EuclideanTransform,
@@ -154,12 +155,14 @@ class Warp(analysistask.ParallelAnalysisTask):
                 EuclideanTransforms for all dataChannels if dataChannel is
                 not specified.
         """
-        transformationMatrices = self.dataSet.load_numpy_analysis_result(
+        transformationList = self.dataSet.load_numpy_analysis_result(
             'offsets', self, resultIndex=fov, subdirectory='transformations')
+        # convert to Transform format
+        transformationList = [transform.EuclideanTransform(_m) for _m in transformationList]
         if dataChannel is not None:
-            return transformationMatrices[dataChannel]
+            return transformationList[dataChannel]
         else:
-            return transformationMatrices
+            return transformationList
 
 
 class FiducialCorrelationWarp(Warp):
