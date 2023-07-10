@@ -200,7 +200,7 @@ class Decode(BarcodeSavingParallelAnalysisTask):
             imageDescription = self.dataSet.analysis_tiff_description(
                 zPositionCount, 3)
             with self.dataSet.writer_for_analysis_images(
-                    self, 'decoded', fov) as outputTif:
+                    self, 'decoded_', fov) as outputTif:
                 for i in range(zPositionCount):
                     outputTif.save(decodedImages[i].astype(np.float32),
                                    photometric='MINISBLACK',
