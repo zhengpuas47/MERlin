@@ -1179,10 +1179,11 @@ class MERFISHDataSet(ImageDataSet):
                 self.dataOrganization.get_image_frame_index(
                     dataChannel, zPosition))
 
-    def get_fiducial_image(self, dataChannel, fov):
+    def get_fiducial_image(self, dataChannel, fov, zPosition=None):
         return self.load_image(
                 self.dataOrganization.get_fiducial_filename(dataChannel, fov),
-                self.dataOrganization.get_fiducial_frame_index(dataChannel))
+                self.dataOrganization.get_fiducial_frame_index(
+                    dataChannel, zPosition=zPosition))
 
     def _import_positions_from_metadata(self):
         positionData = []
