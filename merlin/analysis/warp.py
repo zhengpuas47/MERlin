@@ -113,23 +113,24 @@ class Warp(analysistask.ParallelAnalysisTask):
                                 metadata=imageDescription)
 
         if self.writeAlignedFiducialImages:
-
+            zPositions = self.dataSet.get_z_positions()
             fiducialImageDescription = self.dataSet.analysis_tiff_description(
                     1, len(dataChannels))
 
             with self.dataSet.writer_for_analysis_images(
                     self, 'aligned_fiducial_images', fov) as outputTif:
                 for t, x in zip(transformationList, dataChannels):
-                    inputImage = self.dataSet.get_fiducial_image(x, fov)
-                    transformedImage = transform.warp(
-                            inputImage, t, preserve_range=True) \
-                        .astype(inputImage.dtype)
-                    # append layer into file
-                    outputTif.save(
-                            transformedImage, 
-                            photometric='MINISBLACK',
-                            contiguous=True,
-                            metadata=fiducialImageDescription)
+                    for z in zPositions:
+                        inputImage = self.dataSet.get_fiducial_image(x, fov, z)
+                        transformedImage = transform.warp(
+                                inputImage, t, preserve_range=True) \
+                            .astype(inputImage.dtype)
+                        # append layer into file
+                        outputTif.save(
+                                transformedImage, 
+                                photometric='MINISBLACK',
+                                contiguous=True,
+                                metadata=fiducialImageDescription)
 
         self._save_transformations(transformationList, fov)
 
@@ -202,7 +203,10 @@ class FiducialCorrelationWarp(Warp):
 
     def _run_analysis(self, fragmentIndex: int):
         # TODO - this can be more efficient since some images should
-        # use the same alignment if they are from the same imaging round       
+        # use the same alignment if they are from the same imaging round     
+        # convert to 3d  
+        zPositions = self.get_z_positions()
+        # load ref
         ref_bit = 0 
         fixedRawImage = self.dataSet.get_fiducial_image(ref_bit, fragmentIndex)
         fixedImage = self._filter(fixedRawImage) # get the first round as ref
@@ -212,7 +216,7 @@ class FiducialCorrelationWarp(Warp):
             movingRawImage = self.dataSet.get_fiducial_image(bit, fragmentIndex)
             movingImage = self._filter(movingRawImage)
             _offset = registration.phase_cross_correlation(
-                fixedImage,movingImage,upsample_factor=100,normalization=None)[0]
+                fixedImage,movingImage,upsample_factor=100,normalization=None)[0][-2:] # get the last 2 dimensions
             # if all zero, calculate again
             #if not _offset.any() and bit != ref_bit:
             #    _offset = registration.phase_cross_correlation(

@@ -164,7 +164,9 @@ class DataOrganization(object):
             self.data.loc[dataChannel, 'fiducialImagingRound']
         return self._get_image_path(imageType, fov, imagingRound)
 
-    def get_fiducial_frame_index(self, dataChannel: int) -> int:
+    ##LOG
+    # v0.1.8: changed into 3d 
+    def get_fiducial_frame_index(self, dataChannel: int, zPosition: float=None) -> int: 
         """Get the index of the frame containing the fiducial image
         for the specified data channel.
 
@@ -173,7 +175,36 @@ class DataOrganization(object):
         Returns:
             The index of the fiducial frame in the corresponding image file
         """
-        return self.data.iloc[dataChannel]['fiducialFrame']
+        # compatible with old:
+        _fiducial_frame = self.data.iloc[dataChannel]['fiducialFrame']
+        # If one integer is given, simple, return as old:
+        if isinstance(_fiducial_frame, np.integer):
+            return self.data.iloc[dataChannel]['fiducialFrame']
+        # Otherwise, see if zPosition is given:
+        elif isinstance(_fiducial_frame, np.ndarray) and zPosition is None:
+            print("Z position is not given when fiducial frame is not single value. ")
+            return self.data.iloc[dataChannel]['fiducialFrame'][0]
+        else:
+            channelInfo = self.data.iloc[dataChannel]
+            channelZ = channelInfo['zPos']
+            if isinstance(channelZ, np.ndarray):
+                zIndex = np.where(channelZ == zPosition)[0]
+                if len(zIndex) == 0:
+                    raise Exception('Requested z position not found. Position ' +
+                                    'z=%0.2f not found for channel %i'
+                                    % (zPosition, dataChannel))
+                else:
+                    frameIndex = zIndex[0]
+            else:
+                frameIndex = 0
+
+            frames = channelInfo['fiducialFrame']
+            if isinstance(frames, np.ndarray):
+                frame = frames[frameIndex]
+            else:
+                frame = frames
+
+            return frame
 
     def get_image_filename(self, dataChannel: int, fov: int) -> str:
         """Get the path for the image file that contains the
