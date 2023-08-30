@@ -72,7 +72,7 @@ class Decode(BarcodeSavingParallelAnalysisTask):
         return len(self.dataSet.get_fovs())
 
     def get_estimated_memory(self):
-        return 2048
+        return 2048 # mb
 
     def get_estimated_time(self):
         return 5
