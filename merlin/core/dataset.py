@@ -505,7 +505,7 @@ class DataSet(object):
 
         savePath = self._analysis_result_save_path(
                 resultName, analysisName, resultIndex, subdirectory)
-        np.save(savePath, analysisResult, allow_pickle=True)
+        np.save(savePath, analysisResult, )
 
     def save_numpy_txt_analysis_result(
             self, analysisResult: np.ndarray, resultName: str,
@@ -522,7 +522,7 @@ class DataSet(object):
 
         savePath = self._analysis_result_save_path(
                 resultName, analysisName, resultIndex, subdirectory, '.npy')
-        return np.load(savePath, allow_pickle=True)
+        return np.load(savePath, )
 
     def load_numpy_analysis_result_if_available(
             self, resultName: str, analysisName: str, defaultValue,
