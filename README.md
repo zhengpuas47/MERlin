@@ -13,7 +13,8 @@ execute workflows on a single computer, on a high performance cluster, or on the
 If MERlin is useful for your research, consider citing:
 Emanuel, G., Eichhorn, S. W., Zhuang, X. 2020, MERlin - scalable and extensible MERFISH analysis software, v0.1.6, Zenodo, doi:10.5281/zenodo.3758540 
 
-Please find the most recent version of MERlin [here](https://github.com/emanuega/merlin).
+Support to python 3.10 has been added! Now version 0.1.7 has released: [Release note](https://github.com/zhengpuas47/MERlin/releases/tag/v0.1.7)
+Please find the most recent version of MERlin [here](https://github.com/zhengpuas47/MERlin).
 
 ## MERFISH data analysis
 
@@ -35,12 +36,7 @@ For more information on installation and usage, please see the [documentation](h
 * [**George Emanuel**](mailto:emanuega0@gmail.com) - *Initial work* 
 * **Stephen Eichhorn**
 * **Leonardo Sepulveda**
+* [**Pu Zheng**](mailto:zhengpuas47@gmail.com) - *v0.1.7*
 
 Contributions are welcome! Please see the 
 [documentation](https://emanuega.github.io/MERlin/contributing.html) for contribution guidelines.
-
-## Modified installation:
-
-* install pytorch[link](https://pytorch.org/) and cellpose manually if you need GPU version. (which is usually 10x faster than CPU version in segmenting typical MERFISH datasets)
-* run pip install -e MERlin to allow debugging of codes
-* **Pu Zheng**

@@ -91,7 +91,7 @@ class Reader(object):
         """
         length = 0
         average = np.zeros((self.image_height, self.image_width),
-                           np.float)
+                           np.float64)
         for [i, frame] in self.frame_iterator(start, end):
             if self.verbose and ((i % 10) == 0):
                 print(" processing frame:", i, " of", self.number_frames)

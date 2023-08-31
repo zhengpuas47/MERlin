@@ -72,7 +72,7 @@ class Decode(BarcodeSavingParallelAnalysisTask):
         return len(self.dataSet.get_fovs())
 
     def get_estimated_memory(self):
-        return 2048
+        return 2048 # mb
 
     def get_estimated_time(self):
         return 5
@@ -200,7 +200,7 @@ class Decode(BarcodeSavingParallelAnalysisTask):
             imageDescription = self.dataSet.analysis_tiff_description(
                 zPositionCount, 3)
             with self.dataSet.writer_for_analysis_images(
-                    self, 'decoded', fov) as outputTif:
+                    self, 'decoded_', fov) as outputTif:
                 for i in range(zPositionCount):
                     outputTif.save(decodedImages[i].astype(np.float32),
                                    photometric='MINISBLACK',

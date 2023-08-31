@@ -287,7 +287,10 @@ class DataSet(object):
         """
         savePath = self._analysis_result_save_path(
             resultName, analysisTask, resultIndex, subdirectory, '.gpickle')
-        nx.readwrite.gpickle.write_gpickle(graph, savePath)
+        # alternative gpickle
+        with open(savePath, 'wb') as _f:
+            pickle.dump(graph, _f, pickle.HIGHEST_PROTOCOL)
+        #nx.readwrite.gpickle.write_gpickle(graph, savePath)
 
     def load_graph_from_gpickle(
             self, resultName: str, analysisTask: TaskOrName = None,
@@ -308,7 +311,11 @@ class DataSet(object):
         """
         savePath = self._analysis_result_save_path(
             resultName, analysisTask, resultIndex, subdirectory, '.gpickle')
-        return nx.readwrite.gpickle.read_gpickle(savePath)
+        # alternative gpickle
+        with open(savePath, 'rb') as f:
+            graph = pickle.load(f)
+        return graph
+        #return nx.readwrite.gpickle.read_gpickle(savePath)
 
     def save_dataframe_to_csv(
             self, dataframe: pandas.DataFrame, resultName: str,
@@ -498,7 +505,7 @@ class DataSet(object):
 
         savePath = self._analysis_result_save_path(
                 resultName, analysisName, resultIndex, subdirectory)
-        np.save(savePath, analysisResult)
+        np.save(savePath, analysisResult, )
 
     def save_numpy_txt_analysis_result(
             self, analysisResult: np.ndarray, resultName: str,
@@ -515,7 +522,7 @@ class DataSet(object):
 
         savePath = self._analysis_result_save_path(
                 resultName, analysisName, resultIndex, subdirectory, '.npy')
-        return np.load(savePath, allow_pickle=True)
+        return np.load(savePath, )
 
     def load_numpy_analysis_result_if_available(
             self, resultName: str, analysisName: str, defaultValue,

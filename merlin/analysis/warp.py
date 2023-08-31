@@ -113,31 +113,33 @@ class Warp(analysistask.ParallelAnalysisTask):
                                 metadata=imageDescription)
 
         if self.writeAlignedFiducialImages:
-
+            zPositions = self.dataSet.get_z_positions()
             fiducialImageDescription = self.dataSet.analysis_tiff_description(
                     1, len(dataChannels))
 
             with self.dataSet.writer_for_analysis_images(
                     self, 'aligned_fiducial_images', fov) as outputTif:
                 for t, x in zip(transformationList, dataChannels):
-                    inputImage = self.dataSet.get_fiducial_image(x, fov)
-                    transformedImage = transform.warp(
-                            inputImage, t, preserve_range=True) \
-                        .astype(inputImage.dtype)
-                    # append layer into file
-                    outputTif.save(
-                            transformedImage, 
-                            photometric='MINISBLACK',
-                            contiguous=True,
-                            metadata=fiducialImageDescription)
+                    for z in zPositions:
+                        inputImage = self.dataSet.get_fiducial_image(x, fov, z)
+                        transformedImage = transform.warp(
+                                inputImage, t, preserve_range=True) \
+                            .astype(inputImage.dtype)
+                        # append layer into file
+                        outputTif.save(
+                                transformedImage, 
+                                photometric='MINISBLACK',
+                                contiguous=True,
+                                metadata=fiducialImageDescription)
 
         self._save_transformations(transformationList, fov)
 
     def _save_transformations(self, transformationList: List, fov: int) -> None:
         self.dataSet.save_numpy_analysis_result(
-            np.array(transformationList, dtype=object), 'offsets',
+            np.array([np.array(_m) for _m in transformationList], dtype=np.float64), 
+            'offsets',
             self.get_analysis_name(), resultIndex=fov,
-            subdirectory='transformations')
+            subdirectory='transformations') # here only save the array information
 
     def get_transformation(self, fov: int, dataChannel: int=None
                             ) -> Union[transform.EuclideanTransform,
@@ -154,12 +156,14 @@ class Warp(analysistask.ParallelAnalysisTask):
                 EuclideanTransforms for all dataChannels if dataChannel is
                 not specified.
         """
-        transformationMatrices = self.dataSet.load_numpy_analysis_result(
+        transformationList = self.dataSet.load_numpy_analysis_result(
             'offsets', self, resultIndex=fov, subdirectory='transformations')
+        # convert to Transform format
+        transformationList = [transform.EuclideanTransform(_m) for _m in transformationList]
         if dataChannel is not None:
-            return transformationMatrices[dataChannel]
+            return transformationList[dataChannel]
         else:
-            return transformationMatrices
+            return transformationList
 
 
 class FiducialCorrelationWarp(Warp):
@@ -191,20 +195,35 @@ class FiducialCorrelationWarp(Warp):
         highPassSigma = self.parameters['highpass_sigma']
         highPassFilterSize = int(2 * np.ceil(2 * highPassSigma) + 1)
 
-        return inputImage.astype(float) - cv2.GaussianBlur(
+        highPassImage =  inputImage.astype(float) - cv2.GaussianBlur(
             inputImage, (highPassFilterSize, highPassFilterSize),
             highPassSigma, borderType=cv2.BORDER_REPLICATE)
+        highPassImage[highPassImage < 0] = 0
+        return highPassImage
 
     def _run_analysis(self, fragmentIndex: int):
         # TODO - this can be more efficient since some images should
-        # use the same alignment if they are from the same imaging round
-        fixedImage = self._filter(
-            self.dataSet.get_fiducial_image(0, fragmentIndex))
-        offsets = [registration.phase_cross_correlation(
-            fixedImage,
-            self._filter(self.dataSet.get_fiducial_image(x, fragmentIndex)),
-            upsample_factor=100)[0] for x in
-                   self.dataSet.get_data_organization().get_data_channels()]
-        transformations = [transform.SimilarityTransform(
-            translation=[-x[1], -x[0]]) for x in offsets]
+        # use the same alignment if they are from the same imaging round     
+        # convert to 3d  
+        zPositions = self.get_z_positions()
+        # load ref
+        ref_bit = 0 
+        fixedRawImage = self.dataSet.get_fiducial_image(ref_bit, fragmentIndex)
+        fixedImage = self._filter(fixedRawImage) # get the first round as ref
+        # calculate offsets
+        offsets = []
+        for bit in self.dataSet.get_data_organization().get_data_channels():
+            movingRawImage = self.dataSet.get_fiducial_image(bit, fragmentIndex)
+            movingImage = self._filter(movingRawImage)
+            _offset = registration.phase_cross_correlation(
+                fixedImage,movingImage,upsample_factor=100,normalization=None)[0][-2:] # get the last 2 dimensions
+            # if all zero, calculate again
+            #if not _offset.any() and bit != ref_bit:
+            #    _offset = registration.phase_cross_correlation(
+            #        fixedRawImage,movingRawImage,upsample_factor=100,normalization=None)[0]
+            # append
+            offsets.append(_offset)
+        print(offsets)
+        transformations = [transform.SimilarityTransform(translation=[-_offset[1], -_offset[0]]) 
+                           for _offset in offsets]
         self._process_transformations(transformations, fragmentIndex)
