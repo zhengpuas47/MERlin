@@ -61,6 +61,7 @@ class WatershedSegment(FeatureSavingAnalysisTask):
         if 'watershed_channel_name' not in self.parameters:
             self.parameters['watershed_channel_name'] = 'polyT'
 
+
     def fragment_count(self):
         return len(self.dataSet.get_fovs())
 
@@ -149,6 +150,8 @@ class CellPoseSegment(FeatureSavingAnalysisTask):
             self.parameters['mask_threshold'] = 1.4
         if 'cellprob_threshold' not in self.parameters:
             self.parameters['cellprob_threshold'] = 0.0
+        if 'run_cytoplasm' not in self.parameters:
+            self.parameters['run_cytoplasm'] = False
         if 'verbose' not in self.parameters:
             self.parameters['verbose'] = True
 
@@ -349,10 +352,8 @@ class CellPoseSegment(FeatureSavingAnalysisTask):
         # read images and perform segmentation
         nuclear_images = self._read_image_stack(fragmentIndex, nuclear_ids)
         if cytoplasm_ids is None:
-            run_cytoplasm = False
             cytoplasm_images = nuclear_images
         else:
-            run_cytoplasm = True
             cytoplasm_images = self._read_image_stack(fragmentIndex, cytoplasm_ids)
        
         # Load 3dMask if available   
@@ -366,14 +367,16 @@ class CellPoseSegment(FeatureSavingAnalysisTask):
         except:
             print(f"Generate labels by cellpose for fov_{fragmentIndex}")
             # resize images into 1024 standard size
-            _input_nucl_im = np.array([cv2.resize(_ly, (1024,1024) ) for _ly in nuclear_images])
-            _input_cyto_im = np.array([cv2.resize(_ly, (1024,1024) ) for _ly in cytoplasm_images])
+            _dx, _dy = nuclear_images.shape[-2:]
+            _ndx, _ndy = int(_dx/2), int(_dy/2)
+            _input_nucl_im = np.array([cv2.resize(_ly, (_ndx, _ndy) ) for _ly in nuclear_images])
+            _input_cyto_im = np.array([cv2.resize(_ly, (_ndx, _ndy) ) for _ly in cytoplasm_images])
             # Load the cellpose model. 'nuclei' works the best so far for dapi only
             model = models.CellposeModel(gpu=self.parameters['use_gpu'], model_type='TN2')
             # Run the cellpose prediction
             labels3d, _, _ = model.eval(
                 np.stack([_input_cyto_im, _input_nucl_im], axis=3), 
-                batch_size=20, anisotropy=1000/108/2, # TODO: fix the hard-coded anisotropy
+                batch_size=20, anisotropy=1000/107/2, # TODO: fix the hard-code batch and anisotropy
                 diameter=self.parameters['diameter'], 
                 cellprob_threshold=self.parameters['cellprob_threshold'],
                 do_3D=True, channels=[1,2], 
@@ -386,7 +389,7 @@ class CellPoseSegment(FeatureSavingAnalysisTask):
                                             interpolation=cv2.INTER_NEAREST_EXACT) 
                                  for _ly in labels3d])
             # Watershed with polyt if applicable
-            if run_cytoplasm:
+            if self.parameters['run_cytoplasm']:
                 print(f"Run watershed with cytoplasm images")
                 # prepare watershed
                 normalizedWatershed, watershedMask = watershed.prepare_watershed_images(cytoplasm_images, self.parameters['mask_threshold'])
@@ -398,8 +401,8 @@ class CellPoseSegment(FeatureSavingAnalysisTask):
                     mask=watershedMask,
                     connectivity=np.ones((3, 3, 3)), 
                     watershed_line=True)
-                # dialate to remove sharp edges
-                labels3d = ndimage.grey_dilation(labels3d, structure=morphology.ball(1))
+                ## dialate to remove sharp edges
+                #labels3d = ndimage.grey_dilation(labels3d, structure=morphology.ball(1))
                 
         # Save mask3d
         self._save_mask(fragmentIndex, labels3d)

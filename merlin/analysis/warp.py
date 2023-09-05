@@ -9,6 +9,7 @@ import cv2
 from merlin.core import analysistask
 from merlin.util import aberration
 
+ref_bit = 0 
 
 class Warp(analysistask.ParallelAnalysisTask):
 
@@ -116,12 +117,13 @@ class Warp(analysistask.ParallelAnalysisTask):
             zPositions = self.dataSet.get_z_positions()
             fiducialImageDescription = self.dataSet.analysis_tiff_description(
                     1, len(dataChannels))
-
-            with self.dataSet.writer_for_analysis_images(
-                    self, 'aligned_fiducial_images', fov) as outputTif:
-                for t, x in zip(transformationList, dataChannels):
-                    for z in zPositions:
-                        inputImage = self.dataSet.get_fiducial_image(x, fov, z)
+            # get dimension
+            fiducialDim = self.dataSet.get_fiducial_dimension(ref_bit)
+            if fiducialDim == 2:
+                with self.dataSet.writer_for_analysis_images(
+                        self, 'aligned_fiducial_images', fov) as outputTif:
+                    for t, x in zip(transformationList, dataChannels):
+                        inputImage = self.dataSet.get_fiducial_image(x, fov)
                         transformedImage = transform.warp(
                                 inputImage, t, preserve_range=True) \
                             .astype(inputImage.dtype)
@@ -131,7 +133,22 @@ class Warp(analysistask.ParallelAnalysisTask):
                                 photometric='MINISBLACK',
                                 contiguous=True,
                                 metadata=fiducialImageDescription)
-
+            elif fiducialDim == 3:
+                with self.dataSet.writer_for_analysis_images(
+                        self, 'aligned_fiducial_images', fov) as outputTif:
+                    for t, x in zip(transformationList, dataChannels):
+                        for z in zPositions: # write all layers
+                            inputImage = self.dataSet.get_fiducial_image(x, fov, z)
+                            transformedImage = transform.warp(
+                                    inputImage, t, preserve_range=True) \
+                                .astype(inputImage.dtype)
+                            # append layer into file
+                            outputTif.save(
+                                    transformedImage, 
+                                    photometric='MINISBLACK',
+                                    contiguous=True,
+                                    metadata=fiducialImageDescription)
+                            
         self._save_transformations(transformationList, fov)
 
     def _save_transformations(self, transformationList: List, fov: int) -> None:
@@ -204,26 +221,51 @@ class FiducialCorrelationWarp(Warp):
     def _run_analysis(self, fragmentIndex: int):
         # TODO - this can be more efficient since some images should
         # use the same alignment if they are from the same imaging round     
-        # convert to 3d  
-        zPositions = self.get_z_positions()
         # load ref
-        ref_bit = 0 
-        fixedRawImage = self.dataSet.get_fiducial_image(ref_bit, fragmentIndex)
-        fixedImage = self._filter(fixedRawImage) # get the first round as ref
-        # calculate offsets
         offsets = []
-        for bit in self.dataSet.get_data_organization().get_data_channels():
-            movingRawImage = self.dataSet.get_fiducial_image(bit, fragmentIndex)
-            movingImage = self._filter(movingRawImage)
-            _offset = registration.phase_cross_correlation(
-                fixedImage,movingImage,upsample_factor=100,normalization=None)[0][-2:] # get the last 2 dimensions
-            # if all zero, calculate again
-            #if not _offset.any() and bit != ref_bit:
-            #    _offset = registration.phase_cross_correlation(
-            #        fixedRawImage,movingRawImage,upsample_factor=100,normalization=None)[0]
-            # append
-            offsets.append(_offset)
-        print(offsets)
+        # get dimension
+        fiducialDim = self.dataSet.get_fiducial_dimension(ref_bit)
+        if fiducialDim == 2:
+            print("2D fiducial")
+            fixedRawImage = self.dataSet.get_fiducial_image(ref_bit, fragmentIndex) 
+            fixedImage = self._filter(fixedRawImage) # get the first round as ref
+            for bit in self.dataSet.get_data_organization().get_data_channels():
+                print(bit)
+                movingRawImage = self.dataSet.get_fiducial_image(bit, fragmentIndex)
+                movingImage = self._filter(movingRawImage)
+                _offset = registration.phase_cross_correlation(
+                    fixedImage,movingImage,upsample_factor=100,normalization=None)[0]
+                # append
+                offsets.append(_offset)
+            print(offsets)
+        # convert to 3d  
+
+        elif fiducialDim == 3:
+            print("3D fiducial!")
+            zPositions = self.dataSet.get_z_positions()
+            # get 3D ref image
+            fixedImage3D = []
+            for z in zPositions:
+                fixedRawImage = self.dataSet.get_fiducial_image(ref_bit, fragmentIndex, z) 
+                fixedImage = self._filter(fixedRawImage) # get the first round as ref
+                fixedImage3D.append(fixedImage)
+            fixedImage3D = np.array(fixedImage3D)
+            # calculate offsets
+            offsets = []
+            for bit in self.dataSet.get_data_organization().get_data_channels():
+                movingImage3D = []
+                for z in zPositions:
+                    movingRawImage = self.dataSet.get_fiducial_image(bit, fragmentIndex, z)
+                    movingImage = self._filter(movingRawImage)
+                    movingImage3D.append(movingImage)
+                movingImage3D = np.array(movingImage3D)
+                _offset = registration.phase_cross_correlation(
+                    fixedImage3D, movingImage3D,
+                    upsample_factor=100,normalization=None)[0][-2:] # get the last 2 dimensions
+                # append
+                offsets.append(_offset)
+            print(offsets)
+        # convert into transformations
         transformations = [transform.SimilarityTransform(translation=[-_offset[1], -_offset[0]]) 
                            for _offset in offsets]
         self._process_transformations(transformations, fragmentIndex)

@@ -1179,10 +1179,20 @@ class MERFISHDataSet(ImageDataSet):
                 self.dataOrganization.get_image_frame_index(
                     dataChannel, zPosition))
 
-    def get_fiducial_image(self, dataChannel, fov):
+    def get_fiducial_dimension(self, dataChannel):
+        _fiducial_frames = self.dataOrganization.get_fiducial_frames(dataChannel)
+        #print(f"** fiducial frame: {_fiducial_frames}, type={type(_fiducial_frames)}")
+        if isinstance(_fiducial_frames, np.integer) or isinstance(_fiducial_frames, int):
+            _fiducial_dim = 2 # 2D
+        elif isinstance(_fiducial_frames, np.ndarray):
+            _fiducial_dim = 3 # 3D
+        #print(_fiducial_dim)
+        return _fiducial_dim
+
+    def get_fiducial_image(self, dataChannel, fov, zPosition=None):
         return self.load_image(
                 self.dataOrganization.get_fiducial_filename(dataChannel, fov),
-                self.dataOrganization.get_fiducial_frame_index(dataChannel))
+                self.dataOrganization.get_fiducial_frame_index(dataChannel, zPosition))
 
     def _import_positions_from_metadata(self):
         positionData = []

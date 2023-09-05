@@ -179,6 +179,7 @@ class DataOrganization(object):
         _fiducial_frame = self.data.iloc[dataChannel]['fiducialFrame']
         # If one integer is given, simple, return as old:
         if isinstance(_fiducial_frame, np.integer):
+            #print("integer frame")
             return self.data.iloc[dataChannel]['fiducialFrame']
         # Otherwise, see if zPosition is given:
         elif isinstance(_fiducial_frame, np.ndarray) and zPosition is None:
@@ -205,7 +206,10 @@ class DataOrganization(object):
                 frame = frames
 
             return frame
-
+    def get_fiducial_frames(self, dataChannel:int) -> np.integer:
+        # compatible with old:
+        return self.data.iloc[dataChannel]['fiducialFrame']
+    
     def get_image_filename(self, dataChannel: int, fov: int) -> str:
         """Get the path for the image file that contains the
         images for the specified dataChannel and fov.
