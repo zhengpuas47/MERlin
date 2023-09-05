@@ -583,7 +583,7 @@ class DataSet(object):
                 analysisTask, subdirectory='log')
         
     def save_analysis_task(self, analysisTask: analysistask.AnalysisTask,
-                           overwrite: bool = False):
+                           overwrite: bool = True):
         saveName = os.sep.join([self.get_task_subdirectory(
             analysisTask), 'task.json'])
 
