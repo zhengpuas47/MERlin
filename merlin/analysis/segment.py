@@ -264,64 +264,94 @@ class CellPoseSegment(FeatureSavingAnalysisTask):
             return (False, False, False)
     @staticmethod
     def combine_2d_segmentation_masks_into_3d(segmentationOutput: np.ndarray,
-                                              minKept_zLen:int=1) -> np.ndarray:
+                                            minKept_zLen:int=2,
+                                            matching_overlapRatio:float=0.33,
+                                            ) -> np.ndarray:
         """Take a 3 dimensional segmentation masks and relabel them so that
         nuclei in adjacent sections have the same label if the area their
         overlap surpases certain threshold
         Args:
             segmentationOutput: a 3 dimensional numpy array containing the
                 segmentation masks arranged as (z, x, y).
+            minKept_zLen: minimum z-length of kept segmentation masks
+            matching_overlapRatio: miminum overlap ratio bewteen two segmentation masks to be merged.
         Returns:
             ndarray containing a 3 dimensional mask arranged as (z, x, y) of
                 relabeled segmented cells
         """
 
         # Initialize empty array with size as segmentationOutput array
-        segmentationCombinedZ = np.zeros(segmentationOutput.shape)
+        segmentationCombinedZ = np.zeros(segmentationOutput.shape, dtype=segmentationOutput.dtype)
 
         # copy the mask of the section farthest to the coverslip to start
         segmentationCombinedZ[-1, :, :] = segmentationOutput[-1, :, :]
-
-        # starting far from coverslip
-        for z in range(segmentationOutput.shape[0]-1, 0, -1):
-
+        
+        # Edit by Pu Zheng: start the seed at the middle z-plane, because usually that is the focal plane:
+        mid_z = int(segmentationCombinedZ.shape[0]/2)
+        # get the mid plane:
+        # copy the mask of the section farthest to the coverslip to start
+        segmentationCombinedZ[mid_z, :, :] = segmentationOutput[mid_z, :, :]
+        zs = np.arange(0, segmentationCombinedZ.shape[0])
+        zs_2_ref = np.abs(zs - (mid_z- 0.01)) # a trick to make mid-z closest to ref
+        zs_sorted = zs[np.argsort(zs_2_ref)]
+        processed_zs = [mid_z]
+        for _iz, _z in enumerate(zs_sorted):
+            if _iz == 0:
+                continue
+            # get ref_z
+            _ref_z = processed_zs[np.argmin(np.abs(np.array(processed_zs)-_z))]#zs_sorted[_iz - 1]
+            #
             # get non-background cell indexes for plane Z
-            zIndex = np.unique(segmentationCombinedZ[z, :, :])[
-                                    np.unique(segmentationCombinedZ[z, :, :]) > 0]
-
+            zIndex = np.unique(segmentationOutput[_z, :, :])[
+                            np.unique(segmentationOutput[_z, :, :]) > 0]
+            # attach _z to _ref_z
             # get non-background cell indexes for plane Z-1
-            zm1Index = np.unique(segmentationOutput[z-1, :, :])[
-                                    np.unique(segmentationOutput[z-1, :, :]) > 0]
-            assigned_zm1Index = []
-
+            refzIndex = np.unique(segmentationCombinedZ[_ref_z, :, :])[
+                                np.unique(segmentationCombinedZ[_ref_z, :, :]) > 0]
+            # record assigned index
+            assigned_refzIndex = []
+            #print(_z, _ref_z)
+            #print(len(zIndex))
             # compare each cell in z0
-            for n0 in zIndex:
-                n1, f0, f1 = CellPoseSegment.get_overlapping_objects(segmentationCombinedZ[z, :, :],
-                                                     segmentationOutput[z-1, :, :],
-                                                     n0)
+            for n0 in refzIndex:
+                n1, f0, f1 = CellPoseSegment.get_overlapping_objects(segmentationCombinedZ[_ref_z, :, :],
+                                                    segmentationOutput[_z, :, :],
+                                                    n0, 
+                                                    fraction_threshold0=matching_overlapRatio,
+                                                    fraction_threshold1=matching_overlapRatio,)
+                # If matched: merge
                 if n1:
-                    segmentationCombinedZ[z-1, :, :][
-                        (segmentationOutput[z-1, :, :] == n1)] = n0
-                    assigned_zm1Index.append(n1)
-
+                    segmentationCombinedZ[_z, :, :][
+                        (segmentationOutput[_z, :, :] == n1)] = n0
+                    assigned_refzIndex.append(n1)
+                # If not matched: copy next layer
+                else:
+                    segmentationCombinedZ[_z, :, :][
+                        (segmentationCombinedZ[_ref_z, :, :] == n0)] = n0
+                    #assigned_refzIndex.append(n1)
+                    
             # keep the un-assigned indices in the Z-1 plane
-            unassigned_zm1Index = [i for i in zm1Index if i not in assigned_zm1Index]
-            max_current_id = np.max(segmentationCombinedZ[z-1:, :, :])
-            for i in range(len(unassigned_zm1Index)):
-                unassigned_id = unassigned_zm1Index[i]
-                segmentationCombinedZ[z-1, :, :][
-                        (segmentationOutput[z-1, :, :] == unassigned_id)] = max_current_id + 1 +i
+            unassigned_refzIndex = [i for i in refzIndex if i not in assigned_refzIndex]
+            max_current_id = np.max(segmentationCombinedZ[_z:, :, :])
+            for i in range(len(unassigned_refzIndex)):
+                unassigned_id = unassigned_refzIndex[i]
+                segmentationCombinedZ[_z, :, :][
+                        (segmentationOutput[_z, :, :] == unassigned_id)] = max_current_id + 1 +i
+            
+            processed_zs.append(_z)
+            #print(processed_zs)
+            
         # remove label with only 1 z-layer
         segmentationCleanedZ = np.zeros(segmentationOutput.shape, dtype=np.int16)
         for _lb in np.arange(1, np.max(segmentationCombinedZ)+1):
             _cellMask = (segmentationCombinedZ==_lb)
             _cell_zIndex = np.where(_cellMask.any((1,2)))[0]
             #print(_cell_zIndex)
-            if len(_cell_zIndex) <= minKept_zLen:
+            if len(_cell_zIndex) < minKept_zLen:
                 continue
             else:
                 segmentationCleanedZ[segmentationCombinedZ==_lb] = np.max(segmentationCleanedZ) + 1
-                        
+                    
         return segmentationCleanedZ
 
     def _read_image_stack(self, fov: int, channelIndex: int) -> np.ndarray:
