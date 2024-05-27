@@ -286,7 +286,9 @@ class DataOrganization(object):
         return sequentialChannels, sequentialGeneNames
 
     def _get_image_path(
-            self, imageType: str, fov: int, imagingRound: int) -> str:       
+            self, imageType: str, fov: int, imagingRound: int) -> str:     
+        #print(imageType, fov, imagingRound)
+          
         selection = self.fileMap[(self.fileMap['imageType'] == imageType) &
                                  (self.fileMap['fov'] == fov) &
                                  (self.fileMap['imagingRound'] == imagingRound)]
@@ -295,8 +297,17 @@ class DataOrganization(object):
                             filemapPath)
 
     def _truncate_file_path(self, path) -> None:
-        head, tail = os.path.split(path)
-        return tail
+        #head, tail = os.path.split(path)
+        #return tail
+        # v1.8: modify this to truncate out only base
+        if self._dataSet.dataSetName in path:
+            return path.split(self._dataSet.dataSetName+os.path.sep)[-1]
+        else:
+            return path
+            #print("Directly split")
+            
+            #return os.path.split(path)[-1]
+            
 
     def _map_image_files(self) -> None:
         # TODO: This doesn't map the fiducial image types and currently assumes
@@ -304,11 +315,13 @@ class DataOrganization(object):
         # standard image types.
 
         try:
+            print("Load filemap from file.")
             self.fileMap = self._dataSet.load_dataframe_from_csv('filemap')
             self.fileMap['imagePath'] = self.fileMap['imagePath'].apply(
                 self._truncate_file_path)
 
         except FileNotFoundError:
+            print("Create new filemap ")
             uniqueEntries = self.data.drop_duplicates(
                 subset=['imageType', 'imageRegExp'], keep='first')
 
@@ -326,7 +339,9 @@ class DataOrganization(object):
 
                 matchingFiles = False
                 for currentFile in fileNames:
-                    matchedName = matchRE.match(os.path.split(currentFile)[-1])
+                    # v1.8: match allowing the subdir from rawDataPath:
+                    matchedName = matchRE.match(currentFile.split(self._dataSet.rawDataPath+os.path.sep)[-1])
+                    #matchedName = matchRE.match(os.path.split(currentFile)[-1])
                     if matchedName is not None:
                         transformedName = matchedName.groupdict()
                         if transformedName['imageType'] == currentType:

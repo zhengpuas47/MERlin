@@ -66,7 +66,7 @@ class AnalysisTask(ABC):
         if 'codebookNum' in self.parameters:
             self.codebookNum = self.parameters['codebookNum']
 
-    def save(self, overwrite=False) -> None:
+    def save(self, overwrite=False) -> None: 
         """Save a copy of this AnalysisTask into the data set.
 
         Args:

@@ -96,8 +96,20 @@ class LocalDataPortal(DataPortal):
             return LocalFilePortal(os.path.join(self._basePath, fileName))
 
     def list_files(self, extensionList=None):
-        allFiles = [os.path.join(self._basePath, currentFile)
-                    for currentFile in os.listdir(self._basePath)]
+        #allFiles = [os.path.join(self._basePath, currentFile)
+        #            for currentFile in os.listdir(self._basePath)]
+        allFiles = []
+        # v1.8: support folder searching within subfolders:
+        for _fl in os.listdir(self._basePath):
+            if os.path.isdir(os.path.join(self._basePath, _fl)):
+                subfiles = [os.path.join(self._basePath, _fl, _currFile) 
+                            for _currFile in os.listdir(os.path.join(self._basePath, _fl))]
+                print(_fl, len(subfiles), subfiles[0])
+                allFiles.extend(subfiles)
+                
+            elif os.path.isfile(os.path.join(self._basePath, _fl)):
+                allFiles.append(os.path.join(self._basePath, _fl))
+        print("Detected files:", len(allFiles))
         return self._filter_file_list(allFiles, extensionList)
 
 
