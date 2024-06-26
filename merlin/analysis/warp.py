@@ -239,7 +239,6 @@ class FiducialCorrelationWarp(Warp):
                 offsets.append(_offset)
             print(offsets)
         # convert to 3d  
-
         elif fiducialDim == 3:
             print("3D fiducial!")
             zPositions = self.dataSet.get_z_positions()
@@ -250,9 +249,11 @@ class FiducialCorrelationWarp(Warp):
                 fixedImage = self._filter(fixedRawImage) # get the first round as ref
                 fixedImage3D.append(fixedImage)
             fixedImage3D = np.array(fixedImage3D)
+            print(fixedImage3D.shape)
             # calculate offsets
             offsets = []
             for bit in self.dataSet.get_data_organization().get_data_channels():
+                print(bit)
                 movingImage3D = []
                 for z in zPositions:
                     movingRawImage = self.dataSet.get_fiducial_image(bit, fragmentIndex, z)

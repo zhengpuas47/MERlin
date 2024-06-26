@@ -15,10 +15,15 @@ def _parse_list(inputString: str, dtype=float):
     else:
         return np.fromstring(inputString.strip('[] '), dtype=dtype, sep=' ')
 
-
 def _parse_int_list(inputString: str):
     return _parse_list(inputString, dtype=int)
-
+# support both int value or array:
+def _parse_conditional_int_list(inputString: str):
+    _arr = _parse_list(inputString, dtype=int)
+    if len(_arr) == 1:
+        return _arr[0]
+    else:
+        return _arr
 
 class InputDataError(Exception):
     pass
@@ -55,7 +60,7 @@ class DataOrganization(object):
 
             self.data = pandas.read_csv(
                 filePath,
-                converters={'frame': _parse_int_list, 'zPos': _parse_list})
+                converters={'frame': _parse_int_list, 'zPos': _parse_list, 'fiducialFrame': _parse_conditional_int_list})
             self.data['readoutName'] = self.data['readoutName'].str.strip()
             self._dataSet.save_dataframe_to_csv(
                     self.data, 'dataorganization', index=False)
@@ -63,7 +68,7 @@ class DataOrganization(object):
         else:
             self.data = self._dataSet.load_dataframe_from_csv(
                 'dataorganization',
-                converters={'frame': _parse_int_list, 'zPos': _parse_list})
+                converters={'frame': _parse_int_list, 'zPos': _parse_list, 'fiducialFrame': _parse_conditional_int_list})
 
         stringColumns = ['readoutName', 'channelName', 'imageType',
                          'imageRegExp', 'fiducialImageType', 'fiducialRegExp']
@@ -165,7 +170,7 @@ class DataOrganization(object):
         return self._get_image_path(imageType, fov, imagingRound)
 
     ##LOG
-    # v0.1.8: changed into 3d 
+    # v0.1.7: changed into 3d 
     def get_fiducial_frame_index(self, dataChannel: int, zPosition: float=None) -> int: 
         """Get the index of the frame containing the fiducial image
         for the specified data channel.
@@ -304,10 +309,6 @@ class DataOrganization(object):
             return path.split(self._dataSet.dataSetName+os.path.sep)[-1]
         else:
             return path
-            #print("Directly split")
-            
-            #return os.path.split(path)[-1]
-            
 
     def _map_image_files(self) -> None:
         # TODO: This doesn't map the fiducial image types and currently assumes
@@ -411,8 +412,12 @@ class DataOrganization(object):
                 frames = channelInfo['frame']
 
                 # this assumes fiducials are stored in the same image file
+                if isinstance(channelInfo['fiducialFrame'], int):
+                    fiducialFrames = np.array([channelInfo['fiducialFrame']])
+                else:
+                    fiducialFrames = np.array(channelInfo['fiducialFrame'], dtype=np.int32)
                 requiredFrames = max(np.max(frames),
-                                     channelInfo['fiducialFrame'])
+                                     np.max(fiducialFrames))
                 if requiredFrames >= imageSize[2]:
                     raise InputDataError(
                         ('Insufficient frames in data for channel {0} and '
