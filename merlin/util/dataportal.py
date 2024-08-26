@@ -104,7 +104,7 @@ class LocalDataPortal(DataPortal):
             if os.path.isdir(os.path.join(self._basePath, _fl)):
                 subfiles = [os.path.join(self._basePath, _fl, _currFile) 
                             for _currFile in os.listdir(os.path.join(self._basePath, _fl))]
-                print(_fl, len(subfiles), subfiles[0])
+                #print(_fl, len(subfiles), subfiles[0])
                 allFiles.extend(subfiles)
                 
             elif os.path.isfile(os.path.join(self._basePath, _fl)):
