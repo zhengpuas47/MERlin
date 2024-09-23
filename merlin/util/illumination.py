@@ -81,7 +81,7 @@ def image_2_illumination_profile(
         _limits = [scoreatpercentile(im, min(cap_th_per)), 
                     scoreatpercentile(im, max(cap_th_per))]
         _nim = np.clip(im, min(_limits), max(_limits))
-    _pf = gaussian_filter(np.sum(_nim, axis=0), gaussian_filter_size)
+    _pf = gaussian_filter(np.mean(_nim, axis=0), gaussian_filter_size)
     if verbose:
         print(f"into profile in {time.time()-_total_start:.2f}s.")
     
