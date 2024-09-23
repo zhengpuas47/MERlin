@@ -241,12 +241,12 @@ class PixelBasedDecoder(object):
         df['cell_index'] = -1
 
         fullDF = pandas.concat([df, intensities], axis=1)
-        fullDF = fullDF[(fullDF['x'].between(cropWidth,
-                                             decodedImage.shape[0] - cropWidth,
-                                             inclusive=False)) &
-                        (fullDF['y'].between(cropWidth,
-                                             decodedImage.shape[1] - cropWidth,
-                                             inclusive=False)) &
+        ## TODO: between is depricated, use greater and less instead.
+
+        fullDF = fullDF[fullDF['x'].gt(cropWidth) &
+                        fullDF['x'].lt(decodedImage.shape[0] - cropWidth) &
+                        fullDF['y'].gt(cropWidth) &
+                        fullDF['y'].lt(decodedImage.shape[0] - cropWidth) &                        
                         (fullDF['area'] >= minimumArea)]
 
         return fullDF
