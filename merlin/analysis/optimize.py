@@ -302,7 +302,7 @@ class OptimizeIteration(decode.BarcodeSavingParallelAnalysisTask):
                         np.array([v2[i][0] for i in goodIndexes]),
                         np.array([v2[i][0] + v2[i][1] for i in goodIndexes]))
                     tForms[k][k2] = tForm + previousTransformations[k][k2]
-
+            print("Save chromatic corrections")
             self.dataSet.save_pickle_analysis_result(
                 tForms, 'chromatic_corrections', self.analysisName)
 
