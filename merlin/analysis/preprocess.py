@@ -139,6 +139,9 @@ class DeconvolutionPreprocess(Preprocess):
             self._deconIterations).astype(np.uint16)
         return deconvolvedImage
 
+    def _save_preprocess_image(self, image:np.ndarray, fov:int):
+        self.dataSet.save_numpy_analysis_result(
+            image, 'processed_image', self.analysisName, fov, 'images')    
 
 class DeconvolutionPreprocessGuo(DeconvolutionPreprocess):
 
@@ -162,3 +165,27 @@ class DeconvolutionPreprocessGuo(DeconvolutionPreprocess):
             filteredImage, deconFilterSize, self._deconSigma,
             self._deconIterations).astype(np.uint16)
         return deconvolvedImage
+
+class DeconvolutionPreprocessEmpty(DeconvolutionPreprocess):
+
+    def __init__(self, dataSet, parameters=None, analysisName=None):
+        super().__init__(dataSet, parameters, analysisName)
+
+        # Check for 'decon_iterations' in parameters instead of
+        # self.parameters as 'decon_iterations' is added to
+        # self.parameters by the super-class with a default value
+        # of 20, but we want the default value to be 2.
+        if 'decon_iterations' not in parameters:
+            self.parameters['decon_iterations'] = 2
+
+        self._deconIterations = self.parameters['decon_iterations']
+
+    def _preprocess_image(self, inputImage: np.ndarray) -> np.ndarray:
+        deconFilterSize = self.parameters['decon_filter_size']
+        print("Skip deconPreprocess, return input image")
+        #filteredImage = self._high_pass_filter(inputImage)
+        #deconvolvedImage = deconvolve.deconvolve_lucyrichardson_guo(
+        #    filteredImage, deconFilterSize, self._deconSigma,
+        #    self._deconIterations).astype(np.uint16)
+
+        return inputImage
