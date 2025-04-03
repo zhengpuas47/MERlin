@@ -898,12 +898,12 @@ class ImageDataSet(DataSet):
 
     def get_image_file_names(self):
         return sorted(self.rawDataPortal.list_files(
-            extensionList=['.dax', '.tif', '.tiff']))
+            extensionList=['.dax', '.tif', '.tiff', '.nd2']))
 
     def load_image(self, imagePath, frameIndex):
         with imagereader.infer_reader(
                 self.rawDataPortal.open_file(imagePath)) as reader:
-            imageIn = reader.load_frame(int(frameIndex))
+            imageIn = reader.load_frame(int(frameIndex)) # used here
             if self.transpose:
                 imageIn = np.transpose(imageIn)
             if self.flipHorizontal:
@@ -922,7 +922,7 @@ class ImageDataSet(DataSet):
         """
         with imagereader.infer_reader(self.rawDataPortal.open_file(imagePath)
                                       ) as reader:
-            return reader.film_size()
+            return reader.film_size() # used here
 
     def _import_microscope_parameters(self, microscopeParametersName):
         sourcePath = os.sep.join([merlin.MICROSCOPE_PARAMETERS_HOME,
@@ -969,7 +969,7 @@ class ImageDataSet(DataSet):
         """ Get the xml metadata stored for the specified image.
 
         Args:
-            imagePath: the path to the image file (.dax or .tif)
+            imagePath: the path to the image file (.dax or .tif or .nd2)
         Returns: the metadata from the associated xml file
         """
         filePortal = self.rawDataPortal.open_file(

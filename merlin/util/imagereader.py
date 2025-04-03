@@ -48,6 +48,10 @@ def infer_reader(filePortal: dataportal.FilePortal, verbose: bool = False):
         else:
             raise IOError('Loading tiff files from %s is not yet implemented'
                           % type(filePortal))
+    # Support Nikon ND2
+    elif ext == ".nd2":
+        return ND2Reader(filePortal, verbose=verbose)        
+    
     raise IOError(
         "only .dax and .tif are supported (case sensitive..)")
 
@@ -375,3 +379,61 @@ class TifReader(Reader):
             image_data = image_data.astype(np.uint16)
 
         return image_data
+
+from nd2 import ND2File
+class ND2Reader(Reader):
+    """Class to read ND2 files saved from Nikon NIS-Elements software.
+    """
+    
+    def __init__(self, filePortal: dataportal.FilePortal, verbose: bool = False):
+        super(ND2Reader, self).__init__(filePortal.get_file_name(), verbose=verbose)
+        self._filePortal = filePortal
+        self._parse_nd2()
+
+    def close(self):
+        self._filePortal.close()
+
+    def _parse_nd2(self):
+        # parse by nd2 package
+        with ND2File(self.filename) as ndfile:
+            metadata = ndfile.metadata
+            #self.image = ndfile.asarray()[0]
+            self.voxel_sizes = ndfile.voxel_size()
+            _ws, _hs, _zs = [], [], []
+            for channel in metadata.channels:
+                _w, _h, _z = channel.volume.voxelCount
+                _ws.append(_w)
+                _hs.append(_h)
+                _zs.append(_z)
+                
+        #metadata.channels[0].volume.voxelCount
+        # frames:
+        if np.unique(_ws).size != 1:
+            raise ValueError("Different frame sizes are not supported.")
+        self.image_width = np.unique(_ws)[0]
+        if np.unique(_hs).size != 1:
+            raise ValueError("Different frame sizes are not supported.")
+        self.image_height = np.unique(_hs)[0]
+        # for frames, add them together
+        self.number_frames = np.sum(_zs)
+        # used for loading frame
+        self.channels_names = [_c.channel.name for _c in metadata.channels]
+        self.zs = _zs
+        self.frame_2_channel_index = {}
+        for _i, _z in enumerate(_zs):
+            for _j in range(_z):
+                if len(self.frame_2_channel_index) == 0:
+                    self.frame_2_channel_index[0] = (_i,_j)
+                else:
+                    self.frame_2_channel_index[max(list(self.frame_2_channel_index.keys()))+1] = (_i,_j)
+                
+    def load_frame(self, frame_number):
+        super(ND2Reader, self).load_frame(frame_number)
+        # concatenate frame zstacks
+        with ND2File(self.filename) as ndfile:
+            _i, _j = self.frame_2_channel_index[frame_number]
+            image_data = ndfile.asarray(0)[_j][_i] # this assuming each nd2 has only one image
+
+        return image_data
+    
+    #def film_size

@@ -19,7 +19,7 @@ pytest>=4.6.0
 pytest-cov
 numexpr>=2.6.2
 cython>=0.21
-snakemake>=5.20.1
+snakemake==7.26.0
 h5py>=2.10.0
 requests>=2.18.0
 Shapely>=1.6.4.post2
@@ -30,4 +30,6 @@ xmltodict
 google-cloud-storage
 docutils>=0.10
 pillow>=7.0.0
+pulp<2.8.0
+nd2
 cellpose
