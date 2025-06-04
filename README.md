@@ -14,7 +14,11 @@ If MERlin is useful for your research, consider citing:
 Emanuel, G., Eichhorn, S. W., Zhuang, X. 2020, MERlin - scalable and extensible MERFISH analysis software, v0.1.6, Zenodo, doi:10.5281/zenodo.3758540 
 
 Support to python 3.10 has been added! Now version 0.1.7 has released: [Release note](https://github.com/zhengpuas47/MERlin/releases/tag/v0.1.7)
+
+Further fixes to remove depricated pandas functions has been implemented in version 0.1.8: [Release note](https://github.com/zhengpuas47/MERlin/releases/tag/v0.1.8)
+
 Please find the most recent version of MERlin [here](https://github.com/zhengpuas47/MERlin).
+
 
 ## MERFISH data analysis
 
