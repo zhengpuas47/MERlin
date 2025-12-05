@@ -80,13 +80,13 @@ class DeconvolutionPreprocess(Preprocess):
             self, fov, zIndex: int = None,
             chromaticCorrector: aberration.ChromaticCorrector = None
     ) -> np.ndarray:
-        if zIndex is None:
+        if zIndex is None: # 4d, nbit,z,x,y
             return np.array([[self.get_processed_image(
                 fov, self.dataSet.get_data_organization()
                     .get_data_channel_for_bit(b), zIndex, chromaticCorrector)
                 for zIndex in range(len(self.dataSet.get_z_positions()))]
                 for b in self.get_codebook().get_bit_names()])
-        else:
+        else: # 3d, nbit,x,y
             return np.array([self.get_processed_image(
                 fov, self.dataSet.get_data_organization()
                     .get_data_channel_for_bit(b), zIndex, chromaticCorrector)

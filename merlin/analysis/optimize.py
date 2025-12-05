@@ -97,6 +97,7 @@ class OptimizeIteration(decode.BarcodeSavingParallelAnalysisTask):
 
         chromaticCorrector = aberration.RigidChromaticCorrector(
             chromaticTransformations, self.get_reference_color())
+        # fovIndex and zIndex are randomly selected, so 3D image for warpedImages
         warpedImages = preprocessTask.get_processed_image_set(
             fovIndex, zIndex=zIndex, chromaticCorrector=chromaticCorrector)
 

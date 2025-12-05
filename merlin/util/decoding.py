@@ -50,7 +50,9 @@ class PixelBasedDecoder(object):
                       magnitudeThreshold: float=1,
                       lowPassSigma: float=1):
         """Assign barcodes to the pixels in the provided image stock.
-
+        # here only one z layer is provided. 
+        
+        
         Each pixel is assigned to the nearest barcode from the codebook if
         the distance between the normalized pixel trace and the barcode is
         less than the distance threshold.
@@ -58,7 +60,7 @@ class PixelBasedDecoder(object):
         Args:
             imageData: input image stack. The first dimension indexes the bit
                 number and the second and third dimensions contain the
-                corresponding image.
+                corresponding image. dim: (nbit, dx, dy)
             scaleFactors: factors to rescale each bit prior to normalization.
                 The length of scaleFactors must be equal to the number of bits.
             backgrounds: background to subtract from each bit prior to applying
@@ -85,47 +87,54 @@ class PixelBasedDecoder(object):
                 image containing the distance for each pixel to the assigned
                 barcode.
         """
+        # in decode.py calling, these are provided. 
         if scaleFactors is None:
             scaleFactors = self._scaleFactors
         if backgrounds is None:
             backgrounds = self._backgrounds
-
+        # initialize filteredImages to have dim: (nbit, dx, dy)
         filteredImages = np.zeros(imageData.shape, dtype=np.float32)
+        # apply a gaussian blur to the images, filterSize is ~4x as sigma
         filterSize = int(2 * np.ceil(2 * lowPassSigma) + 1)
         for i in range(imageData.shape[0]):
             filteredImages[i, :, :] = cv2.GaussianBlur(
                 imageData[i, :, :], (filterSize, filterSize), lowPassSigma)
-
+        # pixelTraces are the unraveled pixel, num_bits x num_pixels (dx*dy)
         pixelTraces = np.reshape(
                 filteredImages, 
                 (filteredImages.shape[0], np.prod(filteredImages.shape[1:])))
+        # scaleFactors and backgrounds are 1D arrays, dim: (num_bits,)
         scaledPixelTraces = np.transpose(
                 np.array([(p-b)/s for p, s, b in zip(pixelTraces, scaleFactors,
-                                                   backgrounds)]))
-
+                                                    backgrounds)]))
+        # pixelMagnitudes is the norm of the scaled pixel traces, dim: (num_pixels,)
         pixelMagnitudes = np.array(
             [np.linalg.norm(x) for x in scaledPixelTraces], dtype=np.float32)
-        pixelMagnitudes[pixelMagnitudes == 0] = 1
-
+        pixelMagnitudes[pixelMagnitudes == 0] = 1 # scale by 1 to avoid division by zero
+        # normalize pixel traces, make it unit length. 
         normalizedPixelTraces = scaledPixelTraces/pixelMagnitudes[:, None]
-
+        # set to zero if magnitude is zero, this given distance threshold should remove all this
+        normalizedPixelTraces[pixelMagnitudes == 0] = 0  
+        
+        # use nearest neighbors to assign pixels to barcodes
         neighbors = NearestNeighbors(n_neighbors=1, algorithm='ball_tree')
         neighbors.fit(self._decodingMatrix)
-
+        # now loop over the pixels and find the nearest barcode
         distances, indexes = neighbors.kneighbors(
                 normalizedPixelTraces, return_distance=True)
-
+        # reshape back to natural image shape, dim: (dx, dy)
         decodedImage = np.reshape(
             np.array([i[0] if d[0] <= distanceThreshold else -1
-                      for i, d in zip(indexes, distances)], dtype=np.int16),
+                    for i, d in zip(indexes, distances)], dtype=np.int16),
             filteredImages.shape[1:])
-
+        # reshape pixelMagnitudes, normalizedPixelTraces, and distances
         pixelMagnitudes = np.reshape(pixelMagnitudes, filteredImages.shape[1:])
         normalizedPixelTraces = np.moveaxis(normalizedPixelTraces, 1, 0)
         normalizedPixelTraces = np.reshape(
                 normalizedPixelTraces, filteredImages.shape)
         distances = np.reshape(distances, filteredImages.shape[1:])
 
+        # remove pixels that are below the magnitude threshold
         decodedImage[pixelMagnitudes < magnitudeThreshold] = -1
 
         return decodedImage, pixelMagnitudes, normalizedPixelTraces, distances
@@ -317,7 +326,7 @@ class PixelBasedDecoder(object):
                 decodedImage, pixelMagnitudes, normalizedPixelTraces)
         else:
             backgroundRefactors = np.zeros(self._bitCount)
-
+        # n-barcode x n-bit matrix, where each row is the mean pixel trace
         sumPixelTraces = np.zeros((self._barcodeCount, self._bitCount))
         barcodesSeen = np.zeros(self._barcodeCount)
         for b in range(self._barcodeCount):
@@ -335,10 +344,12 @@ class PixelBasedDecoder(object):
         # The following implementation causes refactors to be
         # all nan (the pipeline will crash in a subsequent optimization step) 
         # when there are bits that are not used by any barcodes in the codebook.
+        print(sumPixelTraces)
+        print('shape-',sumPixelTraces.shape)
         sumPixelTraces[self._decodingMatrix == 0] = np.nan
         onBitIntensity = np.nanmean(sumPixelTraces, axis=0)
         refactors = onBitIntensity/np.mean(onBitIntensity)
-
+        print("Refactors:", refactors)
         return refactors, backgroundRefactors, barcodesSeen
 
     def _extract_backgrounds(
@@ -377,3 +388,4 @@ class PixelBasedDecoder(object):
         backgroundRefactors = offBitIntensity
 
         return backgroundRefactors
+

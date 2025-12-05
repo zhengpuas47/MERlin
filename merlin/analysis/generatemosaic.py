@@ -19,7 +19,7 @@ class GenerateMosaic(analysistask.AnalysisTask):
         super().__init__(dataSet, parameters, analysisName)
 
         if 'microns_per_pixel' not in self.parameters:
-            self.parameters['microns_per_pixel'] = 3
+            self.parameters['microns_per_pixel'] = 2
         if 'fov_crop_width' not in self.parameters:
             self.parameters['fov_crop_width'] = 0
         if 'separate_files' not in self.parameters:
@@ -183,7 +183,7 @@ class GenerateMosaic(analysistask.AnalysisTask):
 
             divisionMask = np.bitwise_and(
                 transformedImage > 0, mosaic > 0)
-            cv2.add(mosaic, transformedImage, dst=mosaic,
+            cv2.add(mosaic, transformedImage.astype(mosaic.dtype), dst=mosaic,
                     mask=np.array(
                         transformedImage > 0).astype(np.uint8))
             dividedMosaic = cv2.divide(mosaic, 2)

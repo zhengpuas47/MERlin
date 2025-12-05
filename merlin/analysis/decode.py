@@ -182,8 +182,8 @@ class Decode(BarcodeSavingParallelAnalysisTask):
         imageSet = preprocessTask.get_processed_image_set(
             fov, zIndex, chromaticCorrector)
         imageSet = imageSet.reshape(
-            (imageSet.shape[0], imageSet.shape[-2], imageSet.shape[-1]))
-
+            (imageSet.shape[0], imageSet.shape[-2], imageSet.shape[-1])) # dim: (nbit, dx, dy)
+        
         di, pm, npt, d = decoder.decode_pixels(
             imageSet, scaleFactors, backgrounds,
             lowPassSigma=self.parameters['lowpass_sigma'],
@@ -202,6 +202,7 @@ class Decode(BarcodeSavingParallelAnalysisTask):
             with self.dataSet.writer_for_analysis_images(
                     self, 'decoded_', fov) as outputTif:
                 for i in range(zPositionCount):
+                    # 3 channels: decodedID, magnitude, distance
                     outputTif.write(decodedImages[i].astype(np.float32),
                                    photometric='MINISBLACK',
                                    contiguous=True,

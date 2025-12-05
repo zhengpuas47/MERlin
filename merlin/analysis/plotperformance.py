@@ -34,14 +34,16 @@ class PlotPerformance(analysistask.AnalysisTask):
                           'global_align_task']
 
     def get_estimated_memory(self):
-        return 30000
+        return 80000
 
     def get_estimated_time(self):
         return 180
 
     def get_dependencies(self):
-        return []
-
+        # Add dependencies to PlotPerformance
+        return [self.parameters['decode_task'], 
+                self.parameters['filter_task']]
+    
     def _run_analysis(self):
         taskDict = {t: self.dataSet.load_analysis_task(self.parameters[t])
                     for t in self.taskTypes if t in self.parameters}

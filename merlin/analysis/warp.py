@@ -5,7 +5,7 @@ from skimage import transform
 from skimage import feature
 from skimage import registration
 import cv2
-
+import os, pickle
 from merlin.core import analysistask
 from merlin.util import aberration
 
@@ -25,10 +25,19 @@ class Warp(analysistask.ParallelAnalysisTask):
             self.parameters['write_fiducial_images'] = False
         if 'write_aligned_images' not in self.parameters:
             self.parameters['write_aligned_images'] = False
+        if 'warp_chromatic' not in self.parameters:
+            self.parameters['warp_chromatic'] = False
 
         self.writeAlignedFiducialImages = self.parameters[
                 'write_fiducial_images']
-
+        # new function: load and do manual correction here
+        if isinstance(self.parameters['warp_chromatic'], str) and os.path.isfile(self.parameters['warp_chromatic']):
+            self.manualChromaticCorrection = True
+            print("Loaded chromatic correction from", self.parameters['warp_chromatic'])
+            self.chromaticCorrectionDict = pickle.load(open(self.parameters['warp_chromatic'], 'rb'))
+        else:
+            self.manualChromaticCorrection = False
+        
     def get_aligned_image_set(
             self, fov: int,
             chromaticCorrector: aberration.ChromaticCorrector=None
@@ -210,6 +219,9 @@ class FiducialCorrelationWarp(Warp):
 
     def _filter(self, inputImage: np.ndarray) -> np.ndarray:
         highPassSigma = self.parameters['highpass_sigma']
+        ## Added in v0.1.8: no highpass if sigma <=0
+        if highPassSigma <= 0:
+            return inputImage
         highPassFilterSize = int(2 * np.ceil(2 * highPassSigma) + 1)
 
         highPassImage =  inputImage.astype(float) - cv2.GaussianBlur(
