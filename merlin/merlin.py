@@ -43,6 +43,8 @@ def build_parser():
     parser.add_argument('--check-done', action='store_true',
                         help='flag to only check if the analysis task is ' +
                         'done')
+    parser.add_argument('-r', '--chromatic-correction',
+                        help='name of the chromatic correction to use, should be a pickle file')
     parser.add_argument(
         '-t', '--analysis-task',
         help='the name of the analysis task to execute. If no '
@@ -107,6 +109,7 @@ def merlin():
         codebookNames=args.codebook,
         microscopeParametersName=_clean_string_arg(args.microscope_parameters),
         positionFileName=_clean_string_arg(args.positions),
+        chromaticCorrectionName=_clean_string_arg(args.chromatic_correction),
         dataHome=_clean_string_arg(args.data_home),
         analysisHome=_clean_string_arg(args.analysis_home)
     )

@@ -3,7 +3,7 @@ from skimage import transform
 import numpy as np
 from abc import ABC
 from abc import abstractmethod
-
+import pickle
 """
 This module contains tools for measuring and correcting chromatic aberrations.
 """
@@ -85,3 +85,17 @@ class RigidChromaticCorrector(ChromaticCorrector):
             inputImage,
             self.transformations[self.referenceColor][imageColor],
             preserve_range=True)
+
+def load_chromatic_corrections(
+        filepath: str) -> Dict[str, Dict[str, transform.EuclideanTransform]]:
+    """ Load chromatic corrections from a file.
+
+    Args:
+        filepath: The path to the file containing the chromatic corrections.
+    Returns:
+        A dictionary of chromatic corrections.
+    """
+    
+    with open(filepath, 'rb') as f:
+        corrections = pickle.load(f)
+        return corrections

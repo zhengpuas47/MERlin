@@ -981,6 +981,7 @@ class MERFISHDataSet(ImageDataSet):
 
     def __init__(self, dataDirectoryName: str, codebookNames: List[str] = None,
                  dataOrganizationName: str = None, positionFileName: str = None,
+                 chromaticCorrectionName: str = None,
                  dataHome: str = None, analysisHome: str = None,
                  microscopeParametersName: str = None):
         """Create a MERFISH dataset for the specified raw data.
@@ -996,6 +997,9 @@ class MERFISHDataSet(ImageDataSet):
                     parameters directory. A full path can be provided for
                     a codebook present in another directory.
             positionFileName: the name of the position file to use.
+            chromaticCorrectionName: the name of the chromatic correction
+                    file to use. If specified, the chromatic correction
+                    file is copied to the analysis directory for this data set
             dataHome: the base path to the data. The data is expected
                     to be in dataHome/dataDirectoryName. If dataHome
                     is not specified, DATA_HOME is read from the
@@ -1022,6 +1026,11 @@ class MERFISHDataSet(ImageDataSet):
         if positionFileName is not None:
             self._import_positions(positionFileName)
         self._load_positions()
+        if chromaticCorrectionName is not None:
+            self._import_chromatic_correction(chromaticCorrectionName)
+        self._load_predefined_chromatic_corrections()
+        
+        
 
     def save_codebook(self, codebook: codebook.Codebook) -> None:
         """ Store the specified codebook in this dataset.
@@ -1221,3 +1230,22 @@ class MERFISHDataSet(ImageDataSet):
 
     def _convert_parameter_list(self, listIn, castFunction, delimiter=';'):
         return [castFunction(x) for x in listIn.split(delimiter) if len(x)>0]
+    
+    def _import_chromatic_correction(self, chromaticCorrectionName):
+        """Import the specified chromatic correction file into this dataset, save a copy in merlin output directory."""
+        sourcePath = os.sep.join(
+            [merlin.CHROMATIC_HOME, chromaticCorrectionName])
+        destPath = os.sep.join(
+            [self.analysisPath, 'predefined_chromatic_corrections.pkl'])
+        shutil.copyfile(sourcePath, destPath)
+    
+    def _load_predefined_chromatic_corrections(self):
+        """Load predefined chromatic corrections if they exist in this dataset. If not given, set to None."""
+        correctionsPath = os.sep.join(
+            [self.analysisPath, 'predefined_chromatic_corrections.pkl'])
+        if os.path.exists(correctionsPath):
+            with open(correctionsPath, 'rb') as f:
+                self.predefined_chromatic_correction = pickle.load(f)
+        else:
+            self.predefined_chromatic_correction = None
+    

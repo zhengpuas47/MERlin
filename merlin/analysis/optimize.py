@@ -4,6 +4,7 @@ from skimage import transform
 from typing import Dict
 from typing import List
 import pandas
+import os
 
 from merlin.analysis import decode
 from merlin.util import decoding
@@ -97,7 +98,6 @@ class OptimizeIteration(decode.BarcodeSavingParallelAnalysisTask):
 
         chromaticCorrector = aberration.RigidChromaticCorrector(
             chromaticTransformations, self.get_reference_color())
-        # fovIndex and zIndex are randomly selected, so 3D image for warpedImages
         warpedImages = preprocessTask.get_processed_image_set(
             fovIndex, zIndex=zIndex, chromaticCorrector=chromaticCorrector)
 
@@ -177,10 +177,15 @@ class OptimizeIteration(decode.BarcodeSavingParallelAnalysisTask):
 
     def _get_previous_chromatic_transformations(self)\
             -> Dict[str, Dict[str, transform.SimilarityTransform]]:
+        usedColors = self._get_used_colors()
         if 'previous_iteration' not in self.parameters:
-            usedColors = self._get_used_colors()
-            return {u: {v: transform.SimilarityTransform()
+            # now made this as a input argument, will be loaded to dataset
+            preDefinedCorrections = self.dataSet.predefined_chromatic_correction
+            if preDefinedCorrections is None:
+                return {u: {v: transform.SimilarityTransform()
                         for v in usedColors if v >= u} for u in usedColors}
+            else:
+                return preDefinedCorrections
         else:
             previousIteration = self.dataSet.load_analysis_task(
                 self.parameters['previous_iteration'])
