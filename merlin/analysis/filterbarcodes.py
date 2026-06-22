@@ -1,9 +1,48 @@
+import os
 import numpy as np
 import pandas
 from scipy import optimize
+from concurrent.futures import ProcessPoolExecutor
 
 from merlin.core import analysistask
 from merlin.analysis import decode
+
+
+def _compute_fov_histogram(args):
+    """Read one FOV's barcodes from HDF5 and return partial (blank, coding) histograms.
+
+    Must be a module-level function so ProcessPoolExecutor can pickle it.
+    """
+    h5_path, blank_set, coding_set, intensityBins, distanceBins, areaBins = args
+    hist_shape = (len(intensityBins) - 1, len(distanceBins) - 1, len(areaBins) - 1)
+    zero = np.zeros(hist_shape)
+
+    try:
+        with pandas.HDFStore(h5_path, mode='r') as store:
+            if 'barcodes' not in store:
+                return zero, zero
+            barcodes = pandas.read_hdf(
+                store, key='barcodes',
+                columns=['barcode_id', 'mean_intensity', 'min_distance', 'area'])
+    except OSError:
+        return zero, zero
+
+    if len(barcodes) == 0:
+        return zero, zero
+
+    barcodeData = barcodes[['mean_intensity', 'min_distance', 'area']].values.astype(float)
+    barcodeData[:, 0] = np.log10(np.maximum(barcodeData[:, 0], 1e-10))
+    barcode_ids = barcodes['barcode_id'].values
+
+    blank_mask = np.isin(barcode_ids, list(blank_set))
+    coding_mask = np.isin(barcode_ids, list(coding_set))
+
+    blank_counts = np.histogramdd(
+        barcodeData[blank_mask], bins=(intensityBins, distanceBins, areaBins))[0]
+    coding_counts = np.histogramdd(
+        barcodeData[coding_mask], bins=(intensityBins, distanceBins, areaBins))[0]
+
+    return blank_counts, coding_counts
 
 
 class AbstractFilterBarcodes(decode.BarcodeSavingParallelAnalysisTask):
@@ -86,6 +125,9 @@ class GenerateAdaptiveThreshold(analysistask.AnalysisTask):
 
     def get_estimated_time(self):
         return 1800
+
+    def _get_n_processors(self):
+        return self.parameters.get('n_processors', 1)
 
     def get_dependencies(self):
         return [self.parameters['run_after_task']]
@@ -239,13 +281,11 @@ class GenerateAdaptiveThreshold(analysistask.AnalysisTask):
             self.parameters['decode_task'])
         codebook = decodeTask.get_codebook()
         barcodeDB = decodeTask.get_barcode_database()
+        n_processors = self._get_n_processors()
 
         completeFragments = \
             self.dataSet.load_numpy_analysis_result_if_available(
                 'complete_fragments', self, [False]*self.fragment_count())
-        pendingFragments = [
-            decodeTask.is_complete(i) and not completeFragments[i]
-            for i in range(self.fragment_count())]
 
         areaBins = self.dataSet.load_numpy_analysis_result_if_available(
             'area_bins', self, np.arange(1, 35))
@@ -261,67 +301,69 @@ class GenerateAdaptiveThreshold(analysistask.AnalysisTask):
         codingCounts = self.dataSet.load_numpy_analysis_result_if_available(
             'coding_counts', self, None)
 
-        self.dataSet.save_numpy_analysis_result(
-            areaBins, 'area_bins', self)
-        self.dataSet.save_numpy_analysis_result(
-            distanceBins, 'distance_bins', self)
+        self.dataSet.save_numpy_analysis_result(areaBins, 'area_bins', self)
+        self.dataSet.save_numpy_analysis_result(distanceBins, 'distance_bins', self)
 
-        updated = False
-        while not all(completeFragments):
-            if (intensityBins is None or
-                    blankCounts is None or codingCounts is None):
-                for i in range(self.fragment_count()):
-                    if not pendingFragments[i] and decodeTask.is_complete(i):
-                        pendingFragments[i] = decodeTask.is_complete(i)
+        # --- Phase 1: initialize intensity bins from a sample of FOVs ---
+        if intensityBins is None or blankCounts is None or codingCounts is None:
+            allFovs = [i for i in range(self.fragment_count())
+                       if decodeTask.is_complete(i)]
+            sampleSize = min(20, len(allFovs))
+            sampledFragments = np.random.choice(allFovs, size=sampleSize, replace=False)
 
-                if np.sum(pendingFragments) >= min(20, self.fragment_count()):
-                    def extreme_values(inputData: pandas.Series):
-                        return inputData.min(), inputData.max()
-                    sampledFragments = np.random.choice(
-                            [i for i, p in enumerate(pendingFragments) if p],
-                            size=20)
-                    intensityExtremes = [
-                        extreme_values(barcodeDB.get_barcodes(
-                            i, columnList=['mean_intensity'])['mean_intensity'])
-                        for i in sampledFragments]
-                    maxIntensity = np.log10(
-                            np.max([x[1] for x in intensityExtremes]))
-                    intensityBins = np.arange(0, 2 * maxIntensity,
-                                              maxIntensity / 100)
-                    self.dataSet.save_numpy_analysis_result(
-                        intensityBins, 'intensity_bins', self)
+            def extreme_values(inputData: pandas.Series):
+                return inputData.min(), inputData.max()
 
-                    blankCounts = np.zeros((len(intensityBins)-1,
-                                            len(distanceBins)-1,
-                                            len(areaBins)-1))
-                    codingCounts = np.zeros((len(intensityBins)-1,
-                                            len(distanceBins)-1,
-                                            len(areaBins)-1))
+            intensityExtremes = [
+                extreme_values(barcodeDB.get_barcodes(
+                    i, columnList=['mean_intensity'])['mean_intensity'])
+                for i in sampledFragments]
+            maxIntensity = np.log10(np.max([x[1] for x in intensityExtremes]))
+            intensityBins = np.arange(0, 2 * maxIntensity, maxIntensity / 100)
+            self.dataSet.save_numpy_analysis_result(intensityBins, 'intensity_bins', self)
 
+            blankCounts = np.zeros((len(intensityBins) - 1,
+                                    len(distanceBins) - 1,
+                                    len(areaBins) - 1))
+            codingCounts = np.zeros((len(intensityBins) - 1,
+                                     len(distanceBins) - 1,
+                                     len(areaBins) - 1))
+
+        # --- Phase 2: accumulate histograms across all remaining FOVs ---
+        pendingFovs = [i for i in range(self.fragment_count())
+                       if not completeFragments[i] and decodeTask.is_complete(i)]
+
+        if pendingFovs:
+            # Build file paths for each FOV's barcode HDF5
+            barcodeDir = self.dataSet.get_analysis_subdirectory(
+                barcodeDB._analysisTask, 'barcodes')
+            h5_paths = [os.path.join(barcodeDir, f'barcode_data_{fov}.h5')
+                        for fov in pendingFovs]
+
+            blank_set = set(codebook.get_blank_indexes())
+            coding_set = set(codebook.get_coding_indexes())
+            args_list = [
+                (path, blank_set, coding_set, intensityBins, distanceBins, areaBins)
+                for path in h5_paths]
+
+            if n_processors > 1:
+                with ProcessPoolExecutor(max_workers=n_processors) as executor:
+                    for fov, (bc, cc) in zip(
+                            pendingFovs, executor.map(_compute_fov_histogram, args_list)):
+                        blankCounts += bc
+                        codingCounts += cc
+                        completeFragments[fov] = True
             else:
-                for i in range(self.fragment_count()):
-                    if not completeFragments[i] and decodeTask.is_complete(i):
-                        barcodes = barcodeDB.get_barcodes(
-                            i, columnList=['barcode_id', 'mean_intensity',
-                                           'min_distance', 'area'])
-                        blankCounts += self._extract_counts(
-                            barcodes[barcodes['barcode_id'].isin(
-                                codebook.get_blank_indexes())],
-                            intensityBins, distanceBins, areaBins)
-                        codingCounts += self._extract_counts(
-                            barcodes[barcodes['barcode_id'].isin(
-                                codebook.get_coding_indexes())],
-                            intensityBins, distanceBins, areaBins)
-                        updated = True
-                        completeFragments[i] = True
+                for fov, args in zip(pendingFovs, args_list):
+                    bc, cc = _compute_fov_histogram(args)
+                    blankCounts += bc
+                    codingCounts += cc
+                    completeFragments[fov] = True
 
-                if updated:
-                    self.dataSet.save_numpy_analysis_result(
-                        completeFragments, 'complete_fragments', self)
-                    self.dataSet.save_numpy_analysis_result(
-                        blankCounts, 'blank_counts', self)
-                    self.dataSet.save_numpy_analysis_result(
-                        codingCounts, 'coding_counts', self)
+            self.dataSet.save_numpy_analysis_result(
+                completeFragments, 'complete_fragments', self)
+            self.dataSet.save_numpy_analysis_result(blankCounts, 'blank_counts', self)
+            self.dataSet.save_numpy_analysis_result(codingCounts, 'coding_counts', self)
 
 
 class AdaptiveFilterBarcodes(AbstractFilterBarcodes):

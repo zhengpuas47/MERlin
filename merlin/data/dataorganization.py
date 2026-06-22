@@ -139,8 +139,12 @@ class DataOrganization(object):
         Returns:
             The index of the associated data channel
         """
-        return self.data[self.data['readoutName'] ==
-                         bitName].index.values.item()
+        try:
+            return self.data[self.data['readoutName'] ==
+                            bitName].index.values.item()
+        except ValueError:
+            raise ValueError('Unable to find data channel for bit name %s' %
+                             bitName)
 
     def get_data_channel_with_name(self, channelName: str) -> int:
         """Get the data channel associated with a gene name.
@@ -350,10 +354,9 @@ class DataOrganization(object):
                         if transformedName['imageType'] == currentType:
                             if 'imagingRound' not in transformedName:
                                 transformedName['imagingRound'] = -1
-                            transformedName['imagePath'] = currentFile
+                            transformedName['imagePath'] = currentFile#.split(self._dataSet.rawDataPath+os.path.sep)[-1]
                             matchingFiles = True
-                            fileData.append(transformedName)
-
+                            fileData.append(transformedName)                                
                 if not matchingFiles:
                     raise dataset.DataFormatException(
                         'Unable to identify image files matching regular '
@@ -362,6 +365,7 @@ class DataOrganization(object):
                            currentType))
 
             self.fileMap = pandas.DataFrame(fileData)
+            print(self.fileMap.head())
             self.fileMap[['imagingRound', 'fov']] = \
                 self.fileMap[['imagingRound', 'fov']].astype(int)
             self.fileMap['imagePath'] = self.fileMap['imagePath'].apply(

@@ -33,7 +33,10 @@ class OptimizeIteration(decode.BarcodeSavingParallelAnalysisTask):
             self.parameters['optimize_chromatic_correction'] = False
         if 'crop_width' not in self.parameters:
             self.parameters['crop_width'] = 0
-
+        if 'random_seed' in self.parameters:
+            # set the random seed
+            # make sure to set a different one for each optimize
+            np.random.seed(self.parameters['random_seed'])
         if 'fov_index' in self.parameters:
             logger = self.dataSet.get_logger(self)
             logger.info('Setting fov_per_iteration to length of fov_index')
@@ -46,6 +49,7 @@ class OptimizeIteration(decode.BarcodeSavingParallelAnalysisTask):
             for i in range(self.parameters['fov_per_iteration']):
                 fovIndex = int(np.random.choice(
                     list(self.dataSet.get_fovs())))
+                # TODO: add new function that if longer than 3 z layers, do not select the first or last frame.
                 zIndex = int(np.random.choice(
                     list(range(len(self.dataSet.get_z_positions())))))
                 self.parameters['fov_index'].append([fovIndex, zIndex])

@@ -19,7 +19,7 @@ class GenerateMosaic(analysistask.AnalysisTask):
         super().__init__(dataSet, parameters, analysisName)
 
         if 'microns_per_pixel' not in self.parameters:
-            self.parameters['microns_per_pixel'] = 2
+            self.parameters['microns_per_pixel'] = 3
         if 'fov_crop_width' not in self.parameters:
             self.parameters['fov_crop_width'] = 0
         if 'separate_files' not in self.parameters:
