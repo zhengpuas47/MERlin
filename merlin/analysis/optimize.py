@@ -234,9 +234,10 @@ class OptimizeIteration(decode.BarcodeSavingParallelAnalysisTask):
         try:
             return self.dataSet.load_pickle_analysis_result(
                 'chromatic_corrections', self.analysisName)
-        # OSError and ValueError are raised if the previous file is not
-        # completely written
-        except (FileNotFoundError, OSError, ValueError):
+        # OSError, ValueError and EOFError are raised if the previous file is
+        # not completely written (EOFError e.g. from np.load reading a
+        # momentarily empty .npy during an NFS write / attribute-cache race)
+        except (FileNotFoundError, OSError, ValueError, EOFError):
             # TODO - this is messy. It can be broken into smaller subunits and
             # most parts could be included in a chromatic aberration class
             previousTransformations = \
@@ -332,9 +333,10 @@ class OptimizeIteration(decode.BarcodeSavingParallelAnalysisTask):
         try:
             return self.dataSet.load_numpy_analysis_result(
                 'scale_factors', self.analysisName)
-        # OSError and ValueError are raised if the previous file is not
-        # completely written
-        except (FileNotFoundError, OSError, ValueError):
+        # OSError, ValueError and EOFError are raised if the previous file is
+        # not completely written (EOFError e.g. from np.load reading a
+        # momentarily empty .npy during an NFS write / attribute-cache race)
+        except (FileNotFoundError, OSError, ValueError, EOFError):
             refactors = np.array([self.dataSet.load_numpy_analysis_result(
                     'scale_refactors', self.analysisName, resultIndex=i)
                 for i in range(self.parameters['fov_per_iteration'])])
@@ -362,9 +364,10 @@ class OptimizeIteration(decode.BarcodeSavingParallelAnalysisTask):
         try:
             return self.dataSet.load_numpy_analysis_result(
                 'backgrounds', self.analysisName)
-        # OSError and ValueError are raised if the previous file is not
-        # completely written
-        except (FileNotFoundError, OSError, ValueError):
+        # OSError, ValueError and EOFError are raised if the previous file is
+        # not completely written (EOFError e.g. from np.load reading a
+        # momentarily empty .npy during an NFS write / attribute-cache race)
+        except (FileNotFoundError, OSError, ValueError, EOFError):
             refactors = np.array([self.dataSet.load_numpy_analysis_result(
                     'background_refactors', self.analysisName, resultIndex=i)
                 for i in range(self.parameters['fov_per_iteration'])])
