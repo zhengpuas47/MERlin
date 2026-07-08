@@ -872,7 +872,9 @@ class ImageDataSet(DataSet):
 
     def __init__(self, dataDirectoryName: str, dataHome: str = None,
                  analysisHome: str = None,
-                 microscopeParametersName: str = None):
+                 microscopeParametersName: str = None,
+                 chromaticCorrectionName: str = None,
+                 hotPixelName: str = None):
         """Create a dataset for the specified raw data.
 
         Args:
@@ -896,6 +898,16 @@ class ImageDataSet(DataSet):
     
         self._load_microscope_parameters()
 
+        if chromaticCorrectionName is not None:
+            self._import_chromatic_correction(chromaticCorrectionName)
+        self._load_predefined_chromatic_corrections()
+        
+        # 20260630 step4: load pixels as attribute
+        if hotPixelName is not None:
+            self._import_hot_pixels(hotPixelName)
+        self._load_predefined_hot_pixels()
+
+
     def get_image_file_names(self):
         return sorted(self.rawDataPortal.list_files(
             extensionList=['.dax', '.tif', '.tiff', '.nd2']))
@@ -904,12 +916,16 @@ class ImageDataSet(DataSet):
         with imagereader.infer_reader(
                 self.rawDataPortal.open_file(imagePath)) as reader:
             imageIn = reader.load_frame(int(frameIndex)) # used here
+            # hot pixel correction if needed:
+            if self.predefined_hot_pixels is not None:
+                imageIn = self._correct_hot_pixels(imageIn) # correct before transpose/flip
             if self.transpose:
                 imageIn = np.transpose(imageIn)
             if self.flipHorizontal:
                 imageIn = np.flip(imageIn, axis=1)
             if self.flipVertical:
                 imageIn = np.flip(imageIn, axis=0)
+                
             return imageIn 
 
     def image_stack_size(self, imagePath):
@@ -950,7 +966,7 @@ class ImageDataSet(DataSet):
         self.micronsPerPixel = self.microscopeParameters.get(
                 'microns_per_pixel', 0.108)
         self.imageDimensions = self.microscopeParameters.get(
-                'image_dimensions', [2048, 2048])
+                'image_dimensions', [2304, 2304])
 
     def get_microns_per_pixel(self):
         """Get the conversion factor to convert pixels to microns."""
@@ -976,12 +992,65 @@ class ImageDataSet(DataSet):
             imagePath).get_sibling_with_extension('.xml')
         return xmltodict.parse(filePortal.read_as_text())
 
+    def _import_chromatic_correction(self, chromaticCorrectionName):
+        """Import the specified chromatic correction file into this dataset, save a copy in merlin output directory."""
+        sourcePath = os.sep.join(
+            [merlin.CHROMATIC_HOME, chromaticCorrectionName])
+        destPath = os.sep.join(
+            [self.analysisPath, 'predefined_chromatic_corrections.pkl'])
+        shutil.copyfile(sourcePath, destPath)
+    
+    def _load_predefined_chromatic_corrections(self):
+        """Load predefined chromatic corrections if they exist in this dataset. If not given, set to None."""
+        correctionsPath = os.sep.join(
+            [self.analysisPath, 'predefined_chromatic_corrections.pkl'])
+        if os.path.exists(correctionsPath):
+            with open(correctionsPath, 'rb') as f:
+                self.predefined_chromatic_correction = pickle.load(f)
+        else:
+            self.predefined_chromatic_correction = None
+    # 20260630 step5: add loading function
+    def _import_hot_pixels(self, hotPixelName):
+        """Import the specified hot pixel file into this dataset, save a copy in merlin output directory."""
+        sourcePath = os.sep.join(
+            [merlin.HOTPIXEL_HOME, hotPixelName])
+        destPath = os.sep.join(
+            [self.analysisPath, 'predefined_hot_pixels.csv'])
+        shutil.copyfile(sourcePath, destPath)
+
+    def _load_predefined_hot_pixels(self):
+        """Load the predefined hot pixels, in csv"""
+        hotPixelPath = os.sep.join(
+            [self.analysisPath, 'predefined_hot_pixels.csv'])
+        if os.path.exists(hotPixelPath):
+            self.predefined_hot_pixels = pandas.read_csv(hotPixelPath, header=None, names=['x', 'y'])
+            print(f"Loaded {len(self.predefined_hot_pixels)} predefined hot pixels from {hotPixelPath}.")
+            print(self.predefined_hot_pixels.head())
+        else:
+            self.predefined_hot_pixels = None
+
+    def _correct_hot_pixels(self, image: np.ndarray) -> np.ndarray:
+        """Replace each predefined hot pixel with the mean of its 3x3 neighborhood."""
+        h, w = image.shape
+        out = image.copy().astype(np.float32)
+        for _, row in self.predefined_hot_pixels.iterrows():
+            x, y = int(row['x']), int(row['y'])
+            if not (0 <= x < w and 0 <= y < h):
+                continue
+            y0, y1 = max(0, y - 1), min(h, y + 2)
+            x0, x1 = max(0, x - 1), min(w, x + 2)
+            patch = image[y0:y1, x0:x1].astype(np.float32)
+            patch[y - y0, x - x0] = np.nan
+            out[y, x] = np.nanmedian(patch)
+        return out.astype(image.dtype)
+
 
 class MERFISHDataSet(ImageDataSet):
-
+    # 20260630 step3: add parameters here
     def __init__(self, dataDirectoryName: str, codebookNames: List[str] = None,
                  dataOrganizationName: str = None, positionFileName: str = None,
-                 chromaticCorrectionName: str = None,
+                 chromaticCorrectionName: str = None, 
+                 hotPixelName: str = None,
                  dataHome: str = None, analysisHome: str = None,
                  microscopeParametersName: str = None):
         """Create a MERFISH dataset for the specified raw data.
@@ -999,7 +1068,9 @@ class MERFISHDataSet(ImageDataSet):
             positionFileName: the name of the position file to use.
             chromaticCorrectionName: the name of the chromatic correction
                     file to use. If specified, the chromatic correction
-                    file is copied to the analysis directory for this data set
+                    file is copied to the analysis directory for this data set    
+            hotPixelName: 
+                    the name of the hot pixel file to use. If specified,   the hot pixel file is copied to the analysis directory for this data set
             dataHome: the base path to the data. The data is expected
                     to be in dataHome/dataDirectoryName. If dataHome
                     is not specified, DATA_HOME is read from the
@@ -1012,8 +1083,9 @@ class MERFISHDataSet(ImageDataSet):
                     file that specifies properties of the microscope used
                     to acquire the images represented by this ImageDataSet
         """
+        
         super().__init__(dataDirectoryName, dataHome, analysisHome,
-                         microscopeParametersName)
+                         microscopeParametersName, chromaticCorrectionName, hotPixelName)
 
         self.dataOrganization = dataorganization.DataOrganization(
                 self, dataOrganizationName)
@@ -1026,10 +1098,6 @@ class MERFISHDataSet(ImageDataSet):
         if positionFileName is not None:
             self._import_positions(positionFileName)
         self._load_positions()
-        if chromaticCorrectionName is not None:
-            self._import_chromatic_correction(chromaticCorrectionName)
-        self._load_predefined_chromatic_corrections()
-        
         
 
     def save_codebook(self, codebook: codebook.Codebook) -> None:
@@ -1231,21 +1299,5 @@ class MERFISHDataSet(ImageDataSet):
     def _convert_parameter_list(self, listIn, castFunction, delimiter=';'):
         return [castFunction(x) for x in listIn.split(delimiter) if len(x)>0]
     
-    def _import_chromatic_correction(self, chromaticCorrectionName):
-        """Import the specified chromatic correction file into this dataset, save a copy in merlin output directory."""
-        sourcePath = os.sep.join(
-            [merlin.CHROMATIC_HOME, chromaticCorrectionName])
-        destPath = os.sep.join(
-            [self.analysisPath, 'predefined_chromatic_corrections.pkl'])
-        shutil.copyfile(sourcePath, destPath)
-    
-    def _load_predefined_chromatic_corrections(self):
-        """Load predefined chromatic corrections if they exist in this dataset. If not given, set to None."""
-        correctionsPath = os.sep.join(
-            [self.analysisPath, 'predefined_chromatic_corrections.pkl'])
-        if os.path.exists(correctionsPath):
-            with open(correctionsPath, 'rb') as f:
-                self.predefined_chromatic_correction = pickle.load(f)
-        else:
-            self.predefined_chromatic_correction = None
+
     

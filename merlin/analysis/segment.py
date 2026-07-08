@@ -5,6 +5,7 @@ from skimage import measure
 from skimage import segmentation
 from skimage import exposure
 from skimage import morphology
+from skimage.registration import phase_cross_correlation
 import rtree
 import networkx as nx
 from cellpose import models
@@ -16,6 +17,7 @@ from merlin.core import dataset
 from merlin.core import analysistask
 from merlin.util import spatialfeature
 from merlin.util import watershed
+from merlin.util.nd2process import _warp_3d_image
 
 
 class FeatureSavingAnalysisTask(analysistask.ParallelAnalysisTask):

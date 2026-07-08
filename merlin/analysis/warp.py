@@ -279,6 +279,6 @@ class FiducialCorrelationWarp(Warp):
                 offsets.append(_offset)
             print(offsets)
         # convert into transformations
-        transformations = [transform.SimilarityTransform(translation=[-_offset[1], -_offset[0]]) 
+        transformations = [transform.SimilarityTransform(translation=[-_offset[1], -_offset[0]])
                            for _offset in offsets]
         self._process_transformations(transformations, fragmentIndex)

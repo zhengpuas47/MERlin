@@ -26,6 +26,8 @@ if os.path.exists(envPath):
                 [PARAMETERS_HOME, 'positions'])
         CHROMATIC_HOME = os.sep.join(
                 [PARAMETERS_HOME, 'chromaticcorrections'])
+        HOTPIXEL_HOME = os.sep.join(
+                [PARAMETERS_HOME, 'hotpixels'])
         MICROSCOPE_PARAMETERS_HOME = os.sep.join(
                 [PARAMETERS_HOME, 'microscope'])
         FPKM_HOME = os.sep.join([PARAMETERS_HOME, 'fpkm'])

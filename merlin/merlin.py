@@ -45,6 +45,8 @@ def build_parser():
                         'done')
     parser.add_argument('-r', '--chromatic-correction',
                         help='name of the chromatic correction to use, should be a pickle file')
+    parser.add_argument('-x', '--hot-pixel',
+                        help='x,y coordinates of hot pixels to be removed, should be a csv file')
     parser.add_argument(
         '-t', '--analysis-task',
         help='the name of the analysis task to execute. If no '
@@ -61,7 +63,7 @@ def build_parser():
     parser.add_argument('--no_report',
                         help='flag indicating that the snakemake stats ' +
                         'should not be shared to improve MERlin')
-
+    # 20260630 step1: add parameter into parser;
     return parser
 
 
@@ -110,9 +112,11 @@ def merlin():
         microscopeParametersName=_clean_string_arg(args.microscope_parameters),
         positionFileName=_clean_string_arg(args.positions),
         chromaticCorrectionName=_clean_string_arg(args.chromatic_correction),
+        hotPixelName=_clean_string_arg(args.hot_pixel),
         dataHome=_clean_string_arg(args.data_home),
         analysisHome=_clean_string_arg(args.analysis_home)
     )
+    # 20260630 step2: add a key here
 
     parametersHome = m.ANALYSIS_PARAMETERS_HOME
     e = executor.LocalExecutor(coreCount=args.core_count)
